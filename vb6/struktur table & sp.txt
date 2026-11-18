@@ -1,0 +1,419 @@
+/****** Object:  Table [dbo].[KTA_M_Income]    Script Date: 18-Nov-2026 8:48:19 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[KTA_M_Income](
+	[CompanyID] [varchar](10) NOT NULL,
+	[LocationID] [varchar](3) NOT NULL,
+	[IncomeCode] [varchar](3) NOT NULL,
+	[Description] [varchar](50) NOT NULL,
+	[CrAccount] [varchar](10) NOT NULL,
+	[DeptID] [varchar](10) NOT NULL,
+	[CNAllow] [varchar](1) NOT NULL,
+	[IsJO] [bit] NULL,
+	[UpdateUser] [varchar](10) NOT NULL,
+	[UpdateDate] [smalldatetime] NOT NULL,
+	[AccountDebit] [varchar](10) NULL,
+	[CTDebit] [varchar](10) NULL,
+	[IsUnearned] [bit] NULL,
+	[IsActive] [bit] NULL,
+ CONSTRAINT [PK_KTA_M_Income] PRIMARY KEY CLUSTERED 
+(
+	[CompanyID] ASC,
+	[LocationID] ASC,
+	[IncomeCode] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+/****** Object:  Table [dbo].[KTA_M_RoomType]    Script Date: 18-Nov-2026 8:48:19 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[KTA_M_RoomType](
+	[CompanyID] [varchar](10) NOT NULL,
+	[LocationID] [varchar](3) NOT NULL,
+	[RoomType] [varchar](5) NOT NULL,
+	[Description] [varchar](50) NOT NULL,
+	[Area] [money] NOT NULL,
+	[CurrencyID] [varchar](3) NOT NULL,
+	[MaintenanceFee] [money] NOT NULL,
+	[SinkingFund] [money] NOT NULL,
+	[Penthouse] [varchar](1) NOT NULL,
+	[UpdateUser] [varchar](10) NOT NULL,
+	[UpdateDate] [smalldatetime] NOT NULL,
+ CONSTRAINT [PK_KTA_M_RoomType] PRIMARY KEY CLUSTERED 
+(
+	[CompanyID] ASC,
+	[LocationID] ASC,
+	[RoomType] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+/****** Object:  Table [dbo].[KTA_M_Unit]    Script Date: 18-Nov-2026 8:48:19 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[KTA_M_Unit](
+	[KeyHD] [int] IDENTITY(1,1) NOT NULL,
+	[CompanyID] [varchar](10) NOT NULL,
+	[LocationID] [varchar](3) NOT NULL,
+	[UnitNo] [varchar](5) NOT NULL,
+	[Tower] [varchar](2) NOT NULL,
+	[Floor] [varchar](2) NOT NULL,
+	[Number] [varchar](1) NOT NULL,
+	[RoomType] [varchar](5) NOT NULL,
+	[StartDate] [smalldatetime] NOT NULL,
+	[HandOverDate] [smalldatetime] NOT NULL,
+	[BADate] [smalldatetime] NULL,
+	[OwnerID] [varchar](10) NOT NULL,
+	[LesseID] [varchar](10) NULL,
+	[BillingTo] [varchar](1) NOT NULL,
+	[TotalCard] [int] NULL,
+	[ValidCard] [int] NULL,
+	[Confidential] [varchar](1) NULL,
+	[SendEmail] [varchar](1) NULL,
+	[SendHardCopy] [varchar](1) NULL,
+	[GroupID] [varchar](5) NULL,
+	[StartLeased] [smalldatetime] NULL,
+	[EndLeased] [smalldatetime] NULL,
+	[AccountNo] [varchar](20) NULL,
+	[AccountName] [varchar](50) NULL,
+	[AccountStartDate] [smalldatetime] NULL,
+	[AJBNo] [varchar](30) NULL,
+	[CertificateNo] [varchar](30) NULL,
+	[CertificateDate] [smalldatetime] NULL,
+	[AgentName] [varchar](100) NULL,
+	[UpdateUser] [varchar](10) NOT NULL,
+	[UpdateDate] [smalldatetime] NOT NULL,
+ CONSTRAINT [PK_KTA_M_Unit] PRIMARY KEY NONCLUSTERED 
+(
+	[KeyHD] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
+ CONSTRAINT [IX_KTA_M_Unit] UNIQUE NONCLUSTERED 
+(
+	[CompanyID] ASC,
+	[LocationID] ASC,
+	[UnitNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+/****** Object:  Table [dbo].[KTA_T_BillingPhone]    Script Date: 18-Nov-2026 8:48:20 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[KTA_T_BillingPhone](
+	[BillDate] [smalldatetime] NULL,
+	[PhoneNo] [varchar](50) NULL,
+	[UnitNo] [varchar](10) NULL,
+	[Fee] [money] NULL,
+	[Local] [money] NULL,
+	[SLJJ] [money] NULL,
+	[International] [money] NULL,
+	[Airtime] [money] NULL,
+	[Japati] [money] NULL,
+	[SubTotal] [money] NULL,
+	[Pulsa_Local] [money] NULL,
+	[Pulsa_SLJJ] [money] NULL,
+	[BeaAdmin] [money] NULL,
+	[PPN] [money] NULL,
+	[Total] [money] NULL
+) ON [PRIMARY]
+GO
+
+/****** Object:  Table [dbo].[KTA_T_CollectCall]    Script Date: 18-Nov-2026 8:48:20 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[KTA_T_CollectCall](
+	[CompanyID] [varchar](10) NOT NULL,
+	[LocationID] [varchar](3) NOT NULL,
+	[Period] [smalldatetime] NOT NULL,
+	[UnitNo] [varchar](5) NOT NULL,
+	[IncomeCode] [varchar](3) NOT NULL,
+	[Description] [varchar](100) NULL,
+	[Amount] [money] NOT NULL,
+	[VAT] [money] NOT NULL,
+	[UpdateUser] [varchar](10) NOT NULL,
+	[UpdateDate] [smalldatetime] NOT NULL,
+ CONSTRAINT [PK_KTA_T_CollectCall] PRIMARY KEY CLUSTERED 
+(
+	[CompanyID] ASC,
+	[LocationID] ASC,
+	[Period] ASC,
+	[UnitNo] ASC,
+	[IncomeCode] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+/****** Object:  Table [dbo].[KTA_T_D_Billing]    Script Date: 18-Nov-2026 8:48:20 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[KTA_T_D_Billing](
+	[KeyHD] [int] NOT NULL,
+	[SeqNo] [int] NOT NULL,
+	[IncomeCode] [varchar](3) NOT NULL,
+	[Amount] [money] NOT NULL,
+	[InvoiceNo] [varchar](10) NOT NULL,
+	[InvoiceDate] [smalldatetime] NOT NULL,
+	[PhoneNo] [varchar](15) NOT NULL,
+	[Description] [varchar](100) NULL,
+ CONSTRAINT [PK_KTA_T_D_Billing] PRIMARY KEY CLUSTERED 
+(
+	[KeyHD] ASC,
+	[SeqNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+/****** Object:  Table [dbo].[KTA_T_D_Outstanding]    Script Date: 18-Nov-2026 8:48:20 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[KTA_T_D_Outstanding](
+	[KeyHD] [int] NOT NULL,
+	[RecordType] [varchar](2) NOT NULL,
+	[RefNo] [varchar](10) NOT NULL,
+	[RefDate] [smalldatetime] NOT NULL,
+	[RKDate] [smalldatetime] NOT NULL,
+	[Amount] [money] NOT NULL,
+	[PaymentNo] [varchar](10) NOT NULL,
+	[CN] [varchar](1) NULL,
+	[UpdateUser] [varchar](10) NOT NULL,
+	[UpdateDate] [smalldatetime] NOT NULL,
+ CONSTRAINT [PK_KTA_T_D_Outstanding] PRIMARY KEY CLUSTERED 
+(
+	[KeyHD] ASC,
+	[RecordType] ASC,
+	[RefNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, FILLFACTOR = 80) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+/****** Object:  Table [dbo].[KTA_T_H_Billing]    Script Date: 18-Nov-2026 8:48:20 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[KTA_T_H_Billing](
+	[KeyHD] [int] IDENTITY(1,1) NOT NULL,
+	[CompanyID] [varchar](10) NOT NULL,
+	[LocationID] [varchar](3) NOT NULL,
+	[BillingNo] [varchar](10) NOT NULL,
+	[UnitNo] [varchar](5) NOT NULL,
+	[BillDate] [smalldatetime] NOT NULL,
+	[DueDate] [smalldatetime] NOT NULL,
+	[CurrencyID] [varchar](3) NOT NULL,
+	[Previous] [money] NOT NULL,
+	[Payment] [money] NOT NULL,
+	[NewBilling] [money] NOT NULL,
+	[NewBalance] [money] NOT NULL,
+	[PrintCode] [tinyint] NOT NULL,
+	[RePrint] [tinyint] NOT NULL,
+	[UpdateUser] [varchar](10) NOT NULL,
+	[UpdateDate] [smalldatetime] NOT NULL,
+ CONSTRAINT [PK_KTA_T_H_Billing] PRIMARY KEY CLUSTERED 
+(
+	[KeyHD] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
+ CONSTRAINT [IX_KTA_T_H_Billing] UNIQUE NONCLUSTERED 
+(
+	[CompanyID] ASC,
+	[LocationID] ASC,
+	[BillingNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+/****** Object:  Table [dbo].[KTA_T_H_Outstanding]    Script Date: 18-Nov-2026 8:48:20 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[KTA_T_H_Outstanding](
+	[KeyHD] [int] IDENTITY(1,1) NOT NULL,
+	[CompanyID] [varchar](10) NOT NULL,
+	[LocationID] [varchar](3) NOT NULL,
+	[TxType] [varchar](1) NOT NULL,
+	[DocumentNo] [varchar](10) NOT NULL,
+	[IncomeCode] [varchar](3) NOT NULL,
+	[DocumentDate] [smalldatetime] NOT NULL,
+	[DueDate] [smalldatetime] NOT NULL,
+	[OwnerID] [varchar](10) NOT NULL,
+	[UnitNo] [varchar](5) NOT NULL,
+	[LocationNo] [varchar](10) NOT NULL,
+	[CurrencyID] [varchar](3) NOT NULL,
+	[PaidDate] [smalldatetime] NOT NULL,
+	[CancelDate] [smalldatetime] NOT NULL,
+	[Status] [tinyint] NOT NULL,
+	[UpdateUser] [varchar](10) NOT NULL,
+	[UpdateDate] [smalldatetime] NOT NULL,
+ CONSTRAINT [PK_KTA_T_H_Outstanding_1] PRIMARY KEY CLUSTERED 
+(
+	[KeyHD] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
+ CONSTRAINT [IX_KTA_T_H_Outstanding_2] UNIQUE NONCLUSTERED 
+(
+	[CompanyID] ASC,
+	[LocationID] ASC,
+	[TxType] ASC,
+	[DocumentNo] ASC,
+	[IncomeCode] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+/****** Object:  Table [dbo].[KTA_T_ProcessBilling]    Script Date: 18-Nov-2026 8:48:20 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[KTA_T_ProcessBilling](
+	[CompanyID] [varchar](10) NOT NULL,
+	[LocationID] [varchar](3) NOT NULL,
+	[Period] [varchar](6) NOT NULL,
+	[Status] [tinyint] NOT NULL,
+	[UpdateUser] [varchar](10) NOT NULL,
+	[UpdateDate] [smalldatetime] NOT NULL,
+ CONSTRAINT [PK_KTA_T_ProcessBilling] PRIMARY KEY CLUSTERED 
+(
+	[CompanyID] ASC,
+	[LocationID] ASC,
+	[Period] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[KTA_T_CollectCall] ADD  CONSTRAINT [DF_KTA_T_CollectCall_Description]  DEFAULT ('') FOR [Description]
+GO
+
+ALTER TABLE [dbo].[KTA_M_Income]  WITH NOCHECK ADD  CONSTRAINT [FK_KTA_M_Income_M_Company_Location] FOREIGN KEY([CompanyID], [LocationID])
+REFERENCES [dbo].[M_Company_Location] ([CompanyID], [LocationID])
+GO
+
+ALTER TABLE [dbo].[KTA_M_Income] CHECK CONSTRAINT [FK_KTA_M_Income_M_Company_Location]
+GO
+
+ALTER TABLE [dbo].[KTA_M_RoomType]  WITH NOCHECK ADD  CONSTRAINT [FK_KTA_M_RoomType_M_Company_Location] FOREIGN KEY([CompanyID], [LocationID])
+REFERENCES [dbo].[M_Company_Location] ([CompanyID], [LocationID])
+GO
+
+ALTER TABLE [dbo].[KTA_M_RoomType] CHECK CONSTRAINT [FK_KTA_M_RoomType_M_Company_Location]
+GO
+
+ALTER TABLE [dbo].[KTA_T_CollectCall]  WITH NOCHECK ADD  CONSTRAINT [FK_KTA_T_CollectCall_KTA_M_Unit] FOREIGN KEY([CompanyID], [LocationID], [UnitNo])
+REFERENCES [dbo].[KTA_M_Unit] ([CompanyID], [LocationID], [UnitNo])
+GO
+
+ALTER TABLE [dbo].[KTA_T_CollectCall] CHECK CONSTRAINT [FK_KTA_T_CollectCall_KTA_M_Unit]
+GO
+
+ALTER TABLE [dbo].[KTA_T_D_Billing]  WITH NOCHECK ADD  CONSTRAINT [FK_KTA_T_D_Billing_KTA_T_H_Billing] FOREIGN KEY([KeyHD])
+REFERENCES [dbo].[KTA_T_H_Billing] ([KeyHD])
+GO
+
+ALTER TABLE [dbo].[KTA_T_D_Billing] CHECK CONSTRAINT [FK_KTA_T_D_Billing_KTA_T_H_Billing]
+GO
+
+ALTER TABLE [dbo].[KTA_T_H_Billing]  WITH NOCHECK ADD  CONSTRAINT [FK_KTA_T_H_Billing_M_Company_Location] FOREIGN KEY([CompanyID], [LocationID])
+REFERENCES [dbo].[M_Company_Location] ([CompanyID], [LocationID])
+GO
+
+ALTER TABLE [dbo].[KTA_T_H_Billing] CHECK CONSTRAINT [FK_KTA_T_H_Billing_M_Company_Location]
+GO
+
+ALTER TABLE [dbo].[KTA_T_ProcessBilling]  WITH CHECK ADD  CONSTRAINT [FK_KTA_T_ProcessBilling_M_Company_Location] FOREIGN KEY([CompanyID], [LocationID])
+REFERENCES [dbo].[M_Company_Location] ([CompanyID], [LocationID])
+GO
+
+ALTER TABLE [dbo].[KTA_T_ProcessBilling] CHECK CONSTRAINT [FK_KTA_T_ProcessBilling_M_Company_Location]
+GO
+
+CREATE PROCEDURE sp_KTA_selectLPC 
+(
+	@CompanyID VARCHAR(10),
+	@LocationID VARCHAR(10),
+	@UnitNo VARCHAR(10),
+	@Period VARCHAR(6)
+)
+
+AS
+/*
+DECLARE @CompanyID VARCHAR(10)
+SET @CompanyID='N00042032'
+DECLARE @LocationID VARCHAR(10)
+SET @LocationID='L01'
+DECLARE @UnitNo VARCHAR(10)
+SET @UnitNo='0526G'
+DECLARE @Period VARCHAR(6)
+SET @Period='202512'
+*/
+DECLARE @PrevPeriod VARCHAR(6)
+SET @PrevPeriod=convert(varchar(6),cast(@Period+'01' AS SMALLDATETIME)-1,112)
+
+SELECT h.KeyHD, h.DocumentNo, h.DocumentDate, h.DueDate, h.IncomeCode, h.CurrencyID, h.UnitNo, h.OwnerID, 
+BillDate=ISNULL(z.BillDate,h.DocumentDate), d.RecordType,
+d.RefNo, d.RKDate, d.Amount,
+StartDate=cast(@PrevPeriod+RIGHT('00'+cast(
+					CASE WHEN @Period<=convert(varchar(6),z1.StartingNewBilling,112) then z1.PreviousBillDate else z1.BillDate END 
+			   AS VARCHAR(2)),2) AS SMALLDATETIME),
+EndDate=cast(@Period+ RIGHT('00'+cast(z1.BillDate AS VARCHAR(2)),2) AS SMALLDATETIME)-1,
+ISNULL(dd.Amount,0) OffsetAmount
+from kta_t_h_outstanding h inner join kta_t_d_outstanding d on d.keyhd=h.keyhd 
+inner join (kta_m_owner x inner join kta_m_unit y on x.companyid=y.companyid and x.locationid=y.locationid and x.ownerid=y.ownerid) 
+on y.companyid=h.companyid and y.locationid=h.locationid and y.unitno=h.unitno
+INNER JOIN kta_m_penalty z1 ON z1.CompanyID=h.CompanyID AND z1.LocationID=h.LocationID
+LEFT JOIN kta_t_d_outstanding dd JOIN KTA_T_H_Outstanding hh ON dd.KeyHD=hh.KeyHD AND dd.RecordType=1 AND dd.Amount<0 ON hh.DocumentNo=h.DocumentNo AND hh.TxType=h.TxType AND hh.UnitNo=h.UnitNo
+left join 
+(
+	SELECT h.CompanyID, h.LocationID, h.UnitNo, h.BillDate, d.InvoiceNo, d.IncomeCode 
+	FROM kta_t_d_billing d, kta_t_h_billing h WHERE d.KeyHD=h.KeyHD AND d.IncomeCode IN ('WOL','WOM')
+) z on z.companyid=h.companyid and z.locationid=h.locationid and z.unitno=h.unitno and z.incomecode=h.incomecode and z.invoiceno=h.documentno 
+where x.penalty='y' and exists 
+(
+	select a.companyid,a.locationid,a.documentno,a.txtype 
+	from kta_t_h_outstanding a inner join kta_t_d_outstanding b on a.keyhd=b.keyhd 
+	where b.refno<>''
+	and a.companyid=h.companyid and a.locationid=h.locationid and a.documentno=h.documentno and a.txtype=h.txtype and a.ownerid=h.ownerid  
+	and duedate<=cast(@Period+RIGHT('00'+cast(z1.BillDate AS VARCHAR(2)),2) AS SMALLDATETIME)-1
+	AND case when recordtype=1 then refdate ELSE rkdate END <=duedate
+	AND case when recordtype=1 then refdate ELSE rkdate END<=cast(@Period+RIGHT('00'+cast(z1.BillDate AS VARCHAR(2)),2) AS SMALLDATETIME)-1
+	group by a.companyid,a.locationid,a.documentno,a.txtype
+	having sum(case when b.recordtype=1 then b.amount else -b.amount end)>0 
+) 
+and h.unitno=@UnitNo and (h.paiddate='' or convert(varchar(6),h.paiddate,112)=@PrevPeriod) 
+and h.companyid=@CompanyID and h.locationid=@LocationID 
+and d.refno<>'' 
+order by d.keyhd, case when d.recordtype=1 then 1 when d.recordtype=3 then 2 else 3 end, d.rkdate;
+GO
