@@ -26,20 +26,24 @@ BEGIN
  SELECT @Period=ActivePeriod FROM dbo.KTA_W_BillingBatch
  WHERE BatchID=@BatchID AND CompanyID=@CompanyID AND LocationID=@LocationID;
  IF @Period IS NULL RAISERROR('Invalid billing batch/company/location.',16,1);
+ RETURN;
 
  SELECT @PeriodCAR=ActivePeriod FROM dbo.M_Active_Period
  WHERE AutoNum='KCAR'+@CompanyID+@LocationID;
  IF @PeriodCAR IS NULL RAISERROR('Active CAR period was not found.',16,1);
+ RETURN;
 
  SELECT @TermDue=CAST(Term AS int),@Penalty=Penalty,@MinPEC=ISNULL(MinPEC,0),
         @HardCopyCharges=ISNULL(HardCopyCharges,0)
  FROM dbo.KTA_M_Penalty WHERE CompanyID=@CompanyID AND LocationID=@LocationID;
  IF @TermDue IS NULL RAISERROR('KTA_M_Penalty not found.',16,1);
+ RETURN;
 
  SELECT TOP 1 @AcctRate=AcctRate FROM dbo.M_Rate
  WHERE CONVERT(varchar(6),[Date],112)=CONVERT(varchar(6),@PeriodCAR,112)
  ORDER BY [Date];
  IF @AcctRate IS NULL RAISERROR('M_Rate for active CAR period was not found.',16,1);
+ RETURN;
 
  -- VB6 requires telephone billing rows for the last day of the month before KAR-1.
  IF NOT EXISTS(SELECT 1 FROM dbo.KTA_T_BillingPhone
@@ -56,6 +60,7 @@ BEGIN
  SELECT @BillDateDay=BillDate FROM dbo.KTA_M_Penalty
  WHERE CompanyID=@CompanyID AND LocationID=@LocationID;
  IF @BillDateDay IS NULL OR @BillDateDay=0 RAISERROR('KTA_M_Penalty.BillDate is not configured.',16,1);
+ RETURN;
  SET @BillDate=DATEADD(day,@BillDateDay-1,DATEADD(month,DATEDIFF(month,0,@Period),0));
  SET @DueDate=DATEADD(day,@TermDue-1,@BillDate);
  SET @PrevPeriod=DATEADD(day,-1,DATEADD(month,DATEDIFF(month,0,@Period),0));
@@ -145,6 +150,7 @@ BEGIN
         EXECUTE dbo.sp_GetGenerateAutoNumID 'arkta',@AutoNum,1;
         SELECT @BillingNo=ID FROM @AutoNumResult;
         IF ISNULL(@BillingNo,'')='' RAISERROR('Failed to generate BillingNo.',16,1);
+        RETURN;
       END
 
       INSERT dbo.KTA_T_H_Billing(CompanyID,LocationID,BillingNo,UnitNo,BillDate,DueDate,
