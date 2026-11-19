@@ -242,7 +242,7 @@ BEGIN
       FROM dbo.KTA_T_D_Billing WHERE KeyHD=@KeyHD;
 
       INSERT dbo.KTA_T_D_Billing(KeyHD,SeqNo,IncomeCode,Amount,InvoiceNo,InvoiceDate,PhoneNo,Description)
-      SELECT @KeyHD,@Seq+ROW_NUMBER() OVER(ORDER BY RowNo),'PCR',Amount,'','19000101','',LEFT([Description],100)
+      SELECT @KeyHD,@Seq+ROW_NUMBER() OVER(ORDER BY DateTrans,[Description],RowNo),'PCR',Amount,'','19000101','',LEFT([Description],100)
       FROM dbo.KTA_W_BillingMember WHERE BatchID=@BatchID AND UnitNo=@UnitNo
         AND DateTrans>=DATEADD(month,DATEDIFF(month,0,@Period),0)
         AND DateTrans<DATEADD(month,DATEDIFF(month,0,@Period)+1,0);
