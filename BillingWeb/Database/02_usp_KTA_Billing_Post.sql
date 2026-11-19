@@ -11,7 +11,8 @@ CREATE PROCEDURE dbo.usp_KTA_Billing_Post
  @BatchID uniqueidentifier,
  @CompanyID varchar(10),
  @LocationID varchar(3),
- @UpdateUser varchar(10)
+ @UpdateUser varchar(10),
+ @Dummy bit = 0
 AS
 BEGIN
  SET NOCOUNT ON;
@@ -129,13 +130,22 @@ BEGIN
              @HandOverDate=HandOverDate,@Previous=Previous,@Payment=Payment
       FROM @Units WHERE RowID=@RowID;
 
-      DECLARE @AutoNumResult TABLE(ID varchar(10),SeqNo int);
-      DECLARE @AutoNum varchar(20);
-      SET @AutoNum='KBI'+@CompanyID+@LocationID;
-      INSERT INTO @AutoNumResult
-      EXECUTE dbo.sp_GetGenerateAutoNumID 'arkta',@AutoNum,1;
-      SELECT @BillingNo=ID FROM @AutoNumResult;
-      IF ISNULL(@BillingNo,'')='' RAISERROR('Failed to generate BillingNo.',16,1);
+      IF @Dummy=1
+      BEGIN
+        -- Dummy IDs are deterministic within the rolled-back preview transaction.
+        -- Never call the production autonumber generator for a dummy statement.
+        SET @BillingNo='D'+RIGHT('000000000'+CONVERT(varchar(9),@RowID),9);
+      END
+      ELSE
+      BEGIN
+        DECLARE @AutoNumResult TABLE(ID varchar(10),SeqNo int);
+        DECLARE @AutoNum varchar(20);
+        SET @AutoNum='KBI'+@CompanyID+@LocationID;
+        INSERT INTO @AutoNumResult
+        EXECUTE dbo.sp_GetGenerateAutoNumID 'arkta',@AutoNum,1;
+        SELECT @BillingNo=ID FROM @AutoNumResult;
+        IF ISNULL(@BillingNo,'')='' RAISERROR('Failed to generate BillingNo.',16,1);
+      END
 
       INSERT dbo.KTA_T_H_Billing(CompanyID,LocationID,BillingNo,UnitNo,BillDate,DueDate,
         CurrencyID,Previous,Payment,NewBilling,NewBalance,PrintCode,RePrint,UpdateUser,UpdateDate)
