@@ -241,6 +241,8 @@ namespace BillingWeb
             if (!fuMember.HasFile) { ShowError("Billing_member.csv belum dipilih."); return; }
             try
             {
+                Session[MemberKey] = EmptyMember();
+                Session["KTA_Billing_ValidationOK_" + BatchID] = false;
                 DataTable src = ReadDelimited(fuMember.PostedFile.InputStream, ',');
                 RequireHeaders(src, "unitno", "date_trans", "description", "amount");
                 DataTable dt = new DataTable();
@@ -275,6 +277,10 @@ namespace BillingWeb
             if (!fuMonthly.HasFile) { ShowError("Billing Report Monthly belum dipilih."); return; }
             try
             {
+                Session[MonthlyKey] = EmptyMonthly();
+                Session[MonthlyNAKey] = false;
+                Session["KTA_Billing_ValidationOK_" + BatchID] = false;
+                chkMonthlyNA.Checked = false;
                 byte[] monthlyBytes = ReadAllBytes(fuMonthly.PostedFile.InputStream);
                 DataTable src;
                 using (MemoryStream ms = new MemoryStream(monthlyBytes))
@@ -322,6 +328,10 @@ namespace BillingWeb
             if (!fuCard.HasFile) { ShowError("Card Payment Statistics.xlsx belum dipilih."); return; }
             try
             {
+                Session[CardKey] = EmptyCard();
+                Session[CardNAKey] = false;
+                Session["KTA_Billing_ValidationOK_" + BatchID] = false;
+                chkCardNA.Checked = false;
                 DataTable dt = new DataTable();
                 dt.Columns.Add("RowNo", typeof(int));
                 dt.Columns.Add("ChargingCardName", typeof(string));
