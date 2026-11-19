@@ -26,9 +26,9 @@ session-key names in Web.config.
 
 There are no persistent billing staging or batch tables. The three source files are parsed into in-memory .NET DataTables held in server-side ASP.NET Session for the lifetime of the upload session. Each Validate, Preview, Process, and Dummy Statement call sends the rows to SQL Server using these table-valued parameters:
 
-- `dbo.Type_Tbl_C4`
-- `dbo.Type_Tbl_C7`
-- `dbo.Type_Tbl_C7`
+- `dbo.Type_Tbl_C4` for Billing_member (4 positional columns)
+- `dbo.Type_Tbl_C7` for Card Payment Statistics (7 positional columns)
+- `dbo.Type_Tbl_C7` for Billing Report Monthly (5 populated columns; remaining columns unused)
 
 SQL validates the TVPs against the active KAR period and existing KTA master/transaction data. Preview reads the TVPs without posting. Final posting repeats validation and copies TVP rows into connection-local `#temp` tables for the legacy calculation flow; those temporary tables disappear automatically. Only existing KTA billing, outstanding, sales-journal, and process tables receive permanent transaction data.
 
@@ -42,7 +42,7 @@ Optional-source unavailable confirmations are held in ASP.NET Session and passed
 4. Database/03_usp_KTA_Billing_DummyStatement.sql
 5. Database/04_Verify_Billing_Deployment.sql (read-only object/schema preflight)
 
-Script 01 creates the three TVP types and the Validate/Preview procedures. It also removes the old KTA_W_* staging tables and CreateBatch/ValidateBatch procedures from the previous design. No physical staging tables are needed.
+Script 01 reuses the existing shared TVP types (`dbo.Type_Tbl_C4` and `dbo.Type_Tbl_C7`) and creates only the Validate/Preview procedures. It also removes the old KTA_W_* staging tables and CreateBatch/ValidateBatch procedures from the previous design. No physical staging tables are needed.
 
 ## Billing period
 
