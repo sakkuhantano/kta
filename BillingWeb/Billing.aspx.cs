@@ -491,6 +491,8 @@ namespace BillingWeb
             gvSummary.DataSource = null; gvSummary.DataBind();
             gvDetail.DataSource = null; gvDetail.DataBind();
             gvSource.DataSource = null; gvSource.DataBind();
+            gvDummyStatement.DataSource = null; gvDummyStatement.DataBind();
+            lblDummyStatement.Text = "";
             lblMember.Text = lblCard.Text = lblMonthly.Text = "";
             chkCardNA.Checked = false; chkMonthlyNA.Checked = false;
         }
