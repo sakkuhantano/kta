@@ -40,6 +40,11 @@ BEGIN
  ORDER BY [Date];
  IF @AcctRate IS NULL RAISERROR('M_Rate for active CAR period was not found.',16,1);
 
+ -- VB6 requires telephone billing rows for the last day of the month before KAR-1.
+ IF NOT EXISTS(SELECT 1 FROM dbo.KTA_T_BillingPhone
+               WHERE BillDate=DATEADD(day,-1,DATEADD(month,-1,DATEADD(day,1,@Period))))
+  RAISERROR('Telephone billing source is missing for the required prior period.',16,1);
+
  IF NOT EXISTS(SELECT 1 FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID AND ValidationStatus=1)
   RAISERROR('Billing batch has not passed validation.',16,1);
 
@@ -94,7 +99,12 @@ BEGIN
       INNER JOIN dbo.vw_KTA_T_H_Outstanding h ON h.KeyHD=d.KeyHD
       WHERE h.CompanyID=@CompanyID AND h.LocationID=@LocationID
         AND h.TxType IN ('W','B') AND h.LocationNo=''
-        AND d.RecordType IN ('3','4','5') AND d.RefDate<=h.EndDate
+        AND d.RecordType IN ('3','4','5') AND d.RefNo<>'' AND d.RefDate<=h.EndDate
+        AND ((h.TxType='W' AND CONVERT(varchar(6),h.DocumentDate,112)=CONVERT(varchar(6),h.PrevPeriod,112)
+              AND CONVERT(varchar(6),d.RefDate,112)>=CONVERT(varchar(6),h.PrevPeriod,112))
+          OR (h.TxType='W' AND CONVERT(varchar(6),h.DocumentDate,112)<CONVERT(varchar(6),h.PrevPeriod,112)
+              AND d.RefDate>=h.StartDate)
+          OR (h.TxType='B' AND d.RefDate>=h.StartDate))
       GROUP BY h.CompanyID,h.LocationID,h.UnitNo
    ) p ON p.CompanyID=u.CompanyID AND p.LocationID=u.LocationID AND p.UnitNo=u.UnitNo
    WHERE u.CompanyID=@CompanyID AND u.LocationID=@LocationID
@@ -161,7 +171,7 @@ BEGIN
 
       INSERT dbo.KTA_T_D_Billing(KeyHD,SeqNo,IncomeCode,Amount,InvoiceNo,InvoiceDate,PhoneNo,Description)
       SELECT @KeyHD,@Seq+ROW_NUMBER() OVER(ORDER BY Period,Description),
-             IncomeCode,Amount,'','19000101','',Description
+             IncomeCode,Amount+VAT,'','19000101','',Description
       FROM dbo.KTA_T_CollectCall
       WHERE CompanyID=@CompanyID AND LocationID=@LocationID AND UnitNo=@UnitNo
         AND CONVERT(varchar(6),Period,112)=CONVERT(varchar(6),@PrevPeriod,112);
@@ -253,8 +263,10 @@ BEGIN
        BillDate smalldatetime,RecordType varchar(2),RefNo varchar(10),RKDate smalldatetime,
        Amount money,StartDate smalldatetime,EndDate smalldatetime,OffsetAmount money);
 
+      DECLARE @LPCPeriod varchar(6);
+      SET @LPCPeriod=CONVERT(varchar(6),@Period,112);
       INSERT #LPC
-      EXEC dbo.sp_KTA_selectLPC @CompanyID,@LocationID,@UnitNo,CONVERT(varchar(6),@Period,112);
+      EXEC dbo.sp_KTA_selectLPC @CompanyID,@LocationID,@UnitNo,@LPCPeriod;
 
       DECLARE @LPCBreak int=9,@LPCKeyHD int,@LPCDueDate smalldatetime,@LPCOuts money,
               @LPCMonth int=DAY(@PrevPeriod),@LPCTotPenalty money=0,@LPCDoc varchar(10),
@@ -264,7 +276,9 @@ BEGIN
               @LPCOuts1 money=0,@LPCIncome1 varchar(3)='',@LPCRKDate1 smalldatetime,
               @LPCPeriod1 smalldatetime;
 
-      SET @LPCPeriod1=CASE WHEN MONTH(@Period)=3 THEN CONVERT(smalldatetime,CONVERT(varchar(4),YEAR(@Period))+'03-02') ELSE @PrevPeriod END;
+      SET @LPCPeriod1=CASE WHEN MONTH(@Period)=3
+                           THEN DATEADD(day,1,DATEADD(month,DATEDIFF(month,0,@Period),0))
+                           ELSE @PrevPeriod END;
 
       DECLARE lpc_cur CURSOR LOCAL FAST_FORWARD FOR
        SELECT KeyHD,DocumentNo,DocumentDate,DueDate,IncomeCode,CurrencyID,UnitNo,OwnerID,
