@@ -18,7 +18,7 @@ BEGIN
  SET NOCOUNT ON;
  SET XACT_ABORT ON;
 
- DECLARE @Period smalldatetime,@PeriodCAR smalldatetime,@PrevPeriod smalldatetime,
+ DECLARE @Period smalldatetime,@PeriodKAR smalldatetime,@PeriodCAR smalldatetime,@PrevPeriod smalldatetime,
          @BillDate smalldatetime,@DueDate smalldatetime,@TermDue int,
          @Penalty money,@MinPEC money,@HardCopyCharges money,@PPN money,
          @AcctRate money,@ProcessStatus tinyint,@Err varchar(4000);
@@ -28,6 +28,14 @@ BEGIN
  IF @Period IS NULL
  BEGIN
   RAISERROR('Invalid billing batch/company/location.',16,1);
+  RETURN;
+ END
+
+ SELECT @PeriodKAR=ActivePeriod FROM dbo.M_Active_Period
+ WHERE AutoNum='KAR'+@CompanyID+@LocationID;
+ IF @PeriodKAR IS NULL OR CONVERT(varchar(6),@PeriodKAR,112)<>CONVERT(varchar(6),@Period,112)
+ BEGIN
+  RAISERROR('Billing batch period is no longer the active KAR period.',16,1);
   RETURN;
  END
 
