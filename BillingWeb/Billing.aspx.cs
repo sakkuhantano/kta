@@ -245,23 +245,17 @@ namespace BillingWeb
                 Session["KTA_Billing_ValidationOK_" + UploadSessionID] = false;
                 DataTable src = ReadDelimited(fuMember.PostedFile.InputStream, ',');
                 RequireHeaders(src, "unitno", "date_trans", "description", "amount");
-                DataTable dt = new DataTable();
-                dt.Columns.Add("RowNo", typeof(int));
-                dt.Columns.Add("UnitNo", typeof(string));
-                dt.Columns.Add("DateTrans", typeof(DateTime));
-                dt.Columns.Add("Description", typeof(string));
-                dt.Columns.Add("Amount", typeof(decimal));
+                DataTable dt = EmptyMember();
                 int row = 0;
                 foreach (DataRow r in src.Rows)
                 {
                     if (IsBlankRow(r)) continue;
                     row++;
                     DataRow n = dt.NewRow();
-                    n["RowNo"] = row;
-                    n["UnitNo"] = Text(r, "unitno");
-                    n["DateTrans"] = ParseDate(Text(r, "date_trans"));
-                    n["Description"] = Text(r, "description");
-                    n["Amount"] = ParseMoney(Text(r, "amount"));
+                    n["C1"] = Text(r, "unitno");
+                    n["C2"] = ParseDate(Text(r, "date_trans")).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+                    n["C3"] = Text(r, "description");
+                    n["C4"] = ParseMoney(Text(r, "amount")).ToString(CultureInfo.InvariantCulture);
                     dt.Rows.Add(n);
                 }
                 Session[MemberKey] = dt;
@@ -291,13 +285,7 @@ namespace BillingWeb
                         src = ReadDelimited(ms, ',');
                 }
                 RequireHeaders(src, "driver account", "subtotal amount", "period");
-                DataTable dt = new DataTable();
-                dt.Columns.Add("RowNo", typeof(int));
-                dt.Columns.Add("DriverAccount", typeof(string));
-                dt.Columns.Add("SubtotalAmount", typeof(decimal));
-                dt.Columns.Add("SubtotalPowerUsage", typeof(decimal));
-                dt.Columns.Add("PeriodFrom", typeof(DateTime));
-                dt.Columns.Add("PeriodThru", typeof(DateTime));
+                DataTable dt = EmptyMonthly();
                 int row = 0;
                 foreach (DataRow r in src.Rows)
                 {
@@ -306,11 +294,11 @@ namespace BillingWeb
                     ParseRangeFromRow(r, out from, out thru);
                     row++;
                     DataRow n = dt.NewRow();
-                    n["RowNo"] = row;
-                    n["DriverAccount"] = Text(r, "driver account");
-                    n["SubtotalAmount"] = ParseMoney(Text(r, "subtotal amount"));
-                    n["SubtotalPowerUsage"] = ParseDecimal(Text(r, "subtotal power usage (kwh)"));
-                    n["PeriodFrom"] = from; n["PeriodThru"] = thru;
+                    n["C1"] = Text(r, "driver account");
+                    n["C2"] = ParseMoney(Text(r, "subtotal amount")).ToString(CultureInfo.InvariantCulture);
+                    n["C3"] = ParseDecimal(Text(r, "subtotal power usage (kwh)")).ToString(CultureInfo.InvariantCulture);
+                    n["C4"] = from.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+                    n["C5"] = thru.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
                     dt.Rows.Add(n);
                 }
                 Session[MonthlyKey] = dt;
@@ -332,15 +320,7 @@ namespace BillingWeb
                 Session[CardNAKey] = false;
                 Session["KTA_Billing_ValidationOK_" + UploadSessionID] = false;
                 chkCardNA.Checked = false;
-                DataTable dt = new DataTable();
-                dt.Columns.Add("RowNo", typeof(int));
-                dt.Columns.Add("ChargingCardName", typeof(string));
-                dt.Columns.Add("ChargingCardNo", typeof(string));
-                dt.Columns.Add("Currency", typeof(string));
-                dt.Columns.Add("TotalPowerCost", typeof(decimal));
-                dt.Columns.Add("TotalPowerConsumption", typeof(decimal));
-                dt.Columns.Add("PeriodFrom", typeof(DateTime));
-                dt.Columns.Add("PeriodThru", typeof(DateTime));
+                DataTable dt = EmptyCard();
 
                 using (ExcelPackage pkg = new ExcelPackage(fuCard.PostedFile.InputStream))
                 {
@@ -365,13 +345,13 @@ namespace BillingWeb
                         ParseRange(Cell(ws, r, periodCol), out from, out thru);
                         row++;
                         DataRow n = dt.NewRow();
-                        n["RowNo"] = row;
-                        n["ChargingCardName"] = name;
-                        n["ChargingCardNo"] = cardNoCol < 0 ? "" : Cell(ws, r, cardNoCol);
-                        n["Currency"] = currencyCol < 0 ? "" : Cell(ws, r, currencyCol);
-                        n["TotalPowerCost"] = ParseMoney(Cell(ws, r, costCol));
-                        n["TotalPowerConsumption"] = consumptionCol < 0 ? 0 : ParseDecimal(Cell(ws, r, consumptionCol));
-                        n["PeriodFrom"] = from; n["PeriodThru"] = thru;
+                        n["C1"] = name;
+                        n["C2"] = cardNoCol < 0 ? "" : Cell(ws, r, cardNoCol);
+                        n["C3"] = currencyCol < 0 ? "" : Cell(ws, r, currencyCol);
+                        n["C4"] = ParseMoney(Cell(ws, r, costCol)).ToString(CultureInfo.InvariantCulture);
+                        n["C5"] = (consumptionCol < 0 ? 0 : ParseDecimal(Cell(ws, r, consumptionCol))).ToString(CultureInfo.InvariantCulture);
+                        n["C6"] = from.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+                        n["C7"] = thru.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
                         dt.Rows.Add(n);
                     }
                 }
@@ -494,39 +474,25 @@ namespace BillingWeb
             cmd.Parameters.Add("@CompanyID", SqlDbType.VarChar, 10).Value = txtCompany.Text.Trim();
             cmd.Parameters.Add("@LocationID", SqlDbType.VarChar, 3).Value = txtLocation.Text.Trim();
             SqlParameter m = cmd.Parameters.AddWithValue("@BillingMember", MemberData);
-            m.SqlDbType = SqlDbType.Structured; m.TypeName = "dbo.Type_KTA_BillingMember";
+            m.SqlDbType = SqlDbType.Structured; m.TypeName = "dbo.Type_Tbl_C4";
             SqlParameter c = cmd.Parameters.AddWithValue("@BillingCard", CardData);
-            c.SqlDbType = SqlDbType.Structured; c.TypeName = "dbo.Type_KTA_BillingCard";
+            c.SqlDbType = SqlDbType.Structured; c.TypeName = "dbo.Type_Tbl_C7";
             SqlParameter mo = cmd.Parameters.AddWithValue("@BillingMonthly", MonthlyData);
-            mo.SqlDbType = SqlDbType.Structured; mo.TypeName = "dbo.Type_KTA_BillingMonthly";
+            mo.SqlDbType = SqlDbType.Structured; mo.TypeName = "dbo.Type_Tbl_C7";
             cmd.Parameters.Add("@CardUnavailableConfirmed", SqlDbType.Bit).Value = Convert.ToBoolean(Session[CardNAKey] ?? false);
             cmd.Parameters.Add("@MonthlyUnavailableConfirmed", SqlDbType.Bit).Value = Convert.ToBoolean(Session[MonthlyNAKey] ?? false);
         }
 
-        private static DataTable EmptyMember()
+        private static DataTable CreateGenericTvp(int count)
         {
             DataTable t = new DataTable();
-            t.Columns.Add("RowNo", typeof(int)); t.Columns.Add("UnitNo", typeof(string));
-            t.Columns.Add("DateTrans", typeof(DateTime)); t.Columns.Add("Description", typeof(string));
-            t.Columns.Add("Amount", typeof(decimal)); return t;
+            for (int i = 1; i <= count; i++) t.Columns.Add("C" + i, typeof(string));
+            return t;
         }
 
-        private static DataTable EmptyCard()
-        {
-            DataTable t = new DataTable();
-            t.Columns.Add("RowNo", typeof(int)); t.Columns.Add("ChargingCardName", typeof(string));
-            t.Columns.Add("ChargingCardNo", typeof(string)); t.Columns.Add("Currency", typeof(string));
-            t.Columns.Add("TotalPowerCost", typeof(decimal)); t.Columns.Add("TotalPowerConsumption", typeof(decimal));
-            t.Columns.Add("PeriodFrom", typeof(DateTime)); t.Columns.Add("PeriodThru", typeof(DateTime)); return t;
-        }
-
-        private static DataTable EmptyMonthly()
-        {
-            DataTable t = new DataTable();
-            t.Columns.Add("RowNo", typeof(int)); t.Columns.Add("DriverAccount", typeof(string));
-            t.Columns.Add("SubtotalAmount", typeof(decimal)); t.Columns.Add("SubtotalPowerUsage", typeof(decimal));
-            t.Columns.Add("PeriodFrom", typeof(DateTime)); t.Columns.Add("PeriodThru", typeof(DateTime)); return t;
-        }
+        private static DataTable EmptyMember() { return CreateGenericTvp(4); }
+        private static DataTable EmptyCard() { return CreateGenericTvp(7); }
+        private static DataTable EmptyMonthly() { return CreateGenericTvp(7); }
 
         private byte[] ExportCrystalStatement(DataSet data, string unitFrom, string unitThru)
         {
