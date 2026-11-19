@@ -129,6 +129,48 @@ BEGIN
  IF @Monthly=1 AND EXISTS(SELECT 1 FROM dbo.KTA_W_BillingMonthly WHERE BatchID=@BatchID
            AND (PeriodFrom<@MonthStart OR PeriodThru>=@MonthEnd OR PeriodFrom>PeriodThru))
   SET @Message=@Message+'Billing Report Monthly contains invalid From-Thru period. ';
+ IF @Member=1 AND EXISTS(
+    SELECT 1 FROM dbo.KTA_W_BillingMember m
+    WHERE m.BatchID=@BatchID AND NOT EXISTS(
+      SELECT 1 FROM dbo.KTA_M_Unit u
+      WHERE u.CompanyID=@CompanyID AND u.LocationID=@LocationID AND u.UnitNo=m.UnitNo
+        AND u.Tower<>'' AND u.OwnerID<>''
+        AND EXISTS(SELECT 1 FROM dbo.KTA_T_H_Billing h
+                   WHERE h.CompanyID=u.CompanyID AND h.LocationID=u.LocationID
+                     AND h.UnitNo=u.UnitNo
+                     AND CONVERT(varchar(6),h.BillDate,112)=
+                         CONVERT(varchar(6),DATEADD(month,-1,@Period),112))
+    ))
+  SET @Message=@Message+'Billing_member contains units that are not eligible for this billing run. ';
+
+ IF @Card=1 AND EXISTS(
+    SELECT 1 FROM dbo.KTA_W_BillingCard c
+    WHERE c.BatchID=@BatchID AND NOT EXISTS(
+      SELECT 1 FROM dbo.KTA_M_Unit u
+      WHERE u.CompanyID=@CompanyID AND u.LocationID=@LocationID AND u.UnitNo=c.ChargingCardName
+        AND u.Tower<>'' AND u.OwnerID<>''
+        AND EXISTS(SELECT 1 FROM dbo.KTA_T_H_Billing h
+                   WHERE h.CompanyID=u.CompanyID AND h.LocationID=u.LocationID
+                     AND h.UnitNo=u.UnitNo
+                     AND CONVERT(varchar(6),h.BillDate,112)=
+                         CONVERT(varchar(6),DATEADD(month,-1,@Period),112))
+    ))
+  SET @Message=@Message+'Card Payment Statistics contains Charging Card Name values that are not eligible unit numbers. ';
+
+ IF @Monthly=1 AND EXISTS(
+    SELECT 1 FROM dbo.KTA_W_BillingMonthly m
+    WHERE m.BatchID=@BatchID AND NOT EXISTS(
+      SELECT 1 FROM dbo.KTA_M_Unit u
+      WHERE u.CompanyID=@CompanyID AND u.LocationID=@LocationID AND u.UnitNo=m.DriverAccount
+        AND u.Tower<>'' AND u.OwnerID<>''
+        AND EXISTS(SELECT 1 FROM dbo.KTA_T_H_Billing h
+                   WHERE h.CompanyID=u.CompanyID AND h.LocationID=u.LocationID
+                     AND h.UnitNo=u.UnitNo
+                     AND CONVERT(varchar(6),h.BillDate,112)=
+                         CONVERT(varchar(6),DATEADD(month,-1,@Period),112))
+    ))
+  SET @Message=@Message+'Billing Report Monthly contains Driver Account values that are not eligible unit numbers. ';
+
  IF @Member=1 AND NOT EXISTS(SELECT 1 FROM dbo.KTA_W_BillingMember WHERE BatchID=@BatchID)
   SET @Message=@Message+'Billing_member has no data rows. ';
  IF @Card=1 AND NOT EXISTS(SELECT 1 FROM dbo.KTA_W_BillingCard WHERE BatchID=@BatchID)
