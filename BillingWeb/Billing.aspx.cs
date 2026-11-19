@@ -150,8 +150,6 @@ namespace BillingWeb
                     cmd.CommandType = CommandType.StoredProcedure;
                     cmd.CommandTimeout = 0;
                     AddTvpParameters(cmd);
-                    cmd.Parameters.Add("@CompanyID", SqlDbType.VarChar, 10).Value = txtCompany.Text.Trim();
-                    cmd.Parameters.Add("@LocationID", SqlDbType.VarChar, 3).Value = txtLocation.Text.Trim();
                     cmd.Parameters.Add("@UpdateUser", SqlDbType.VarChar, 10).Value = SafeUser();
                     cmd.Parameters.Add("@UnitNoFrom", SqlDbType.VarChar, 10).Value = unitFrom;
                     cmd.Parameters.Add("@UnitNoThru", SqlDbType.VarChar, 10).Value = unitThru;
@@ -289,7 +287,6 @@ namespace BillingWeb
                 }
                 RequireHeaders(src, "driver account", "subtotal amount", "period");
                 DataTable dt = new DataTable();
-                dt.Columns.Add("BatchID", typeof(Guid));
                 dt.Columns.Add("RowNo", typeof(int));
                 dt.Columns.Add("DriverAccount", typeof(string));
                 dt.Columns.Add("SubtotalAmount", typeof(decimal));
@@ -304,7 +301,7 @@ namespace BillingWeb
                     ParseRangeFromRow(r, out from, out thru);
                     row++;
                     DataRow n = dt.NewRow();
-                    n["BatchID"] = BatchID; n["RowNo"] = row;
+                    n["RowNo"] = row;
                     n["DriverAccount"] = Text(r, "driver account");
                     n["SubtotalAmount"] = ParseMoney(Text(r, "subtotal amount"));
                     n["SubtotalPowerUsage"] = ParseDecimal(Text(r, "subtotal power usage (kwh)"));
