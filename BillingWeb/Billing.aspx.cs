@@ -604,7 +604,7 @@ namespace BillingWeb
         private static void ParseRange(string value, out DateTime from, out DateTime thru)
         {
             string s = (value ?? "").Trim().Trim('"').Replace('–','-').Replace('—','-');
-            Match m = Regex.Match(s, @"(\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}|\\d{1,2}[-/]\\d{1,2}[-/]\\d{4})\\s*(?:_|\\s+-\\s+|\\s+to\\s+|\\s+THRU\\s+)(\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}|\\d{1,2}[-/]\\d{1,2}[-/]\\d{4})", RegexOptions.IgnoreCase);
+            Match m = Regex.Match(s, @"(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4})\s*(?:_|\s+-\s+|\s+to\s+|\s+THRU\s+)(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4})", RegexOptions.IgnoreCase);
             if (!m.Success)
                 throw new ApplicationException("Statistical/From-Thru period tidak valid: " + value);
             from = ParseDate(m.Groups[1].Value);
