@@ -451,7 +451,7 @@ namespace BillingWeb
 
         private void SetProcessState(bool completed)
         {
-            bool enabled = !completed && BatchID != Guid.Empty && MemberData.Rows.Count > 0;
+            bool enabled = !completed && CanPreviewSafe();
             btnProcess.Enabled = enabled;
             btnDummyStatementRun.Enabled = !completed;
             btnPreview.Enabled = !completed;
