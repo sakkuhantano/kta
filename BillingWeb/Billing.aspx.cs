@@ -17,26 +17,26 @@ namespace BillingWeb
 {
     public partial class Billing : Page
     {
-        private const string BatchViewStateKey = "KTA_Billing_SessionID";
-        private string MemberKey { get { return "KTA_Billing_Member_" + BatchID; } }
-        private string CardKey { get { return "KTA_Billing_Card_" + BatchID; } }
-        private string MonthlyKey { get { return "KTA_Billing_Monthly_" + BatchID; } }
-        private string CardNAKey { get { return "KTA_Billing_CardNA_" + BatchID; } }
-        private string MonthlyNAKey { get { return "KTA_Billing_MonthlyNA_" + BatchID; } }
+        private const string UploadSessionViewStateKey = "KTA_Billing_SessionID";
+        private string MemberKey { get { return "KTA_Billing_Member_" + UploadSessionID; } }
+        private string CardKey { get { return "KTA_Billing_Card_" + UploadSessionID; } }
+        private string MonthlyKey { get { return "KTA_Billing_Monthly_" + UploadSessionID; } }
+        private string CardNAKey { get { return "KTA_Billing_CardNA_" + UploadSessionID; } }
+        private string MonthlyNAKey { get { return "KTA_Billing_MonthlyNA_" + UploadSessionID; } }
         private DataTable MemberData { get { return Session[MemberKey] as DataTable ?? EmptyMember(); } }
         private DataTable CardData { get { return Session[CardKey] as DataTable ?? EmptyCard(); } }
         private DataTable MonthlyData { get { return Session[MonthlyKey] as DataTable ?? EmptyMonthly(); } }
         private string ConnectionString { get { return ConfigurationManager.ConnectionStrings["KTA"].ConnectionString; } }
 
-        private Guid BatchID
+        private Guid UploadSessionID
         {
             get
             {
-                object v = ViewState[BatchViewStateKey];
+                object v = ViewState[UploadSessionViewStateKey];
                 Guid id;
                 return v != null && Guid.TryParse(v.ToString(), out id) ? id : Guid.Empty;
             }
-            set { ViewState[BatchViewStateKey] = value.ToString(); }
+            set { ViewState[UploadSessionViewStateKey] = value.ToString(); }
         }
 
         protected void Page_Load(object sender, EventArgs e)
@@ -77,14 +77,14 @@ namespace BillingWeb
 
         private void CreateBatch()
         {
-            BatchID = Guid.NewGuid(); // Session-scoped upload correlation only; never stored in SQL.
+            UploadSessionID = Guid.NewGuid(); // Session-scoped upload correlation only; never stored in SQL.
             Session[MemberKey] = EmptyMember();
             Session[CardKey] = EmptyCard();
             Session[MonthlyKey] = EmptyMonthly();
             Session[CardNAKey] = false;
             Session[MonthlyNAKey] = false;
-            Session["KTA_Billing_ValidationOK_" + BatchID] = false;
-            txtBatchID.Text = "Session " + BatchID.ToString("N").Substring(0, 12);
+            Session["KTA_Billing_ValidationOK_" + UploadSessionID] = false;
+            txtBatchID.Text = "Session " + UploadSessionID.ToString("N").Substring(0, 12);
             using (SqlConnection cn = new SqlConnection(ConnectionString))
             using (SqlCommand cmd = new SqlCommand("SELECT ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KAR'+@CompanyID+@LocationID", cn))
             {
@@ -242,7 +242,7 @@ namespace BillingWeb
             try
             {
                 Session[MemberKey] = EmptyMember();
-                Session["KTA_Billing_ValidationOK_" + BatchID] = false;
+                Session["KTA_Billing_ValidationOK_" + UploadSessionID] = false;
                 DataTable src = ReadDelimited(fuMember.PostedFile.InputStream, ',');
                 RequireHeaders(src, "unitno", "date_trans", "description", "amount");
                 DataTable dt = new DataTable();
@@ -279,7 +279,7 @@ namespace BillingWeb
             {
                 Session[MonthlyKey] = EmptyMonthly();
                 Session[MonthlyNAKey] = false;
-                Session["KTA_Billing_ValidationOK_" + BatchID] = false;
+                Session["KTA_Billing_ValidationOK_" + UploadSessionID] = false;
                 chkMonthlyNA.Checked = false;
                 byte[] monthlyBytes = ReadAllBytes(fuMonthly.PostedFile.InputStream);
                 DataTable src;
@@ -330,7 +330,7 @@ namespace BillingWeb
             {
                 Session[CardKey] = EmptyCard();
                 Session[CardNAKey] = false;
-                Session["KTA_Billing_ValidationOK_" + BatchID] = false;
+                Session["KTA_Billing_ValidationOK_" + UploadSessionID] = false;
                 chkCardNA.Checked = false;
                 DataTable dt = new DataTable();
                 dt.Columns.Add("RowNo", typeof(int));
@@ -390,14 +390,14 @@ namespace BillingWeb
             if (source == "Card")
             {
                 Session[CardNAKey] = value;
-                Session["KTA_Billing_ValidationOK_" + BatchID] = false;
+                Session["KTA_Billing_ValidationOK_" + UploadSessionID] = false;
                 if (value) Session[CardKey] = EmptyCard();
                 else if (Session[CardKey] == null) Session[CardKey] = EmptyCard();
             }
             else
             {
                 Session[MonthlyNAKey] = value;
-                Session["KTA_Billing_ValidationOK_" + BatchID] = false;
+                Session["KTA_Billing_ValidationOK_" + UploadSessionID] = false;
                 if (value) Session[MonthlyKey] = EmptyMonthly();
                 else if (Session[MonthlyKey] == null) Session[MonthlyKey] = EmptyMonthly();
             }
@@ -405,7 +405,7 @@ namespace BillingWeb
 
         private void ValidateAndRefresh()
         {
-            Session["KTA_Billing_ValidationOK_" + BatchID] = false;
+            Session["KTA_Billing_ValidationOK_" + UploadSessionID] = false;
             try
             {
                 using (SqlConnection cn = new SqlConnection(ConnectionString))
@@ -422,7 +422,7 @@ namespace BillingWeb
                             string msg = dr["ValidationMessage"] == DBNull.Value ? "" : dr["ValidationMessage"].ToString();
                             if (dr["ActivePeriod"] != DBNull.Value)
                                 txtActivePeriod.Text = Convert.ToDateTime(dr["ActivePeriod"]).ToString("yyyy-MM");
-                            Session["KTA_Billing_ValidationOK_" + BatchID] = (status == 1);
+                            Session["KTA_Billing_ValidationOK_" + UploadSessionID] = (status == 1);
                             lblStatus.Text = status == 1 ? "Validation OK. Semua source sesuai periode KAR aktif." : msg;
                             lblStatus.CssClass = status == 1 ? "alert alert-success d-block mb-0" : "alert alert-danger d-block mb-0";
                             SetProcessState(false);
@@ -435,8 +435,8 @@ namespace BillingWeb
 
         private bool CanPreview()
         {
-            if (BatchID == Guid.Empty || MemberData.Rows.Count == 0) return false;
-            return Convert.ToBoolean(Session["KTA_Billing_ValidationOK_" + BatchID] ?? false);
+            if (UploadSessionID == Guid.Empty || MemberData.Rows.Count == 0) return false;
+            return Convert.ToBoolean(Session["KTA_Billing_ValidationOK_" + UploadSessionID] ?? false);
         }
 
         private void LoadPreview()
