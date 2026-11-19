@@ -17,7 +17,15 @@ namespace BillingWeb
 {
     public partial class Billing : Page
     {
-        private const string BatchViewStateKey = "KTA_Billing_BatchID";
+        private const string BatchViewStateKey = "KTA_Billing_SessionID";
+        private string MemberKey { get { return "KTA_Billing_Member_" + BatchID; } }
+        private string CardKey { get { return "KTA_Billing_Card_" + BatchID; } }
+        private string MonthlyKey { get { return "KTA_Billing_Monthly_" + BatchID; } }
+        private string CardNAKey { get { return "KTA_Billing_CardNA_" + BatchID; } }
+        private string MonthlyNAKey { get { return "KTA_Billing_MonthlyNA_" + BatchID; } }
+        private DataTable MemberData { get { return Session[MemberKey] as DataTable ?? EmptyMember(); } }
+        private DataTable CardData { get { return Session[CardKey] as DataTable ?? EmptyCard(); } }
+        private DataTable MonthlyData { get { return Session[MonthlyKey] as DataTable ?? EmptyMonthly(); } }
         private string ConnectionString { get { return ConfigurationManager.ConnectionStrings["KTA"].ConnectionString; } }
 
         private Guid BatchID
@@ -69,24 +77,24 @@ namespace BillingWeb
 
         private void CreateBatch()
         {
+            BatchID = Guid.NewGuid(); // Session-scoped upload correlation only; never stored in SQL.
+            Session[MemberKey] = EmptyMember();
+            Session[CardKey] = EmptyCard();
+            Session[MonthlyKey] = EmptyMonthly();
+            Session[CardNAKey] = false;
+            Session[MonthlyNAKey] = false;
+            txtBatchID.Text = "Session " + BatchID.ToString("N").Substring(0, 12);
             using (SqlConnection cn = new SqlConnection(ConnectionString))
-            using (SqlCommand cmd = new SqlCommand("dbo.usp_KTA_Billing_CreateBatch", cn))
+            using (SqlCommand cmd = new SqlCommand("SELECT ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KAR'+@CompanyID+@LocationID", cn))
             {
-                cmd.CommandType = CommandType.StoredProcedure;
                 cmd.Parameters.Add("@CompanyID", SqlDbType.VarChar, 10).Value = txtCompany.Text.Trim();
                 cmd.Parameters.Add("@LocationID", SqlDbType.VarChar, 3).Value = txtLocation.Text.Trim();
-                cmd.Parameters.Add("@UpdateUser", SqlDbType.VarChar, 10).Value = ResolveUser().Substring(0, Math.Min(10, ResolveUser().Length));
-                SqlParameter pBatch = cmd.Parameters.Add("@BatchID", SqlDbType.UniqueIdentifier);
-                pBatch.Direction = ParameterDirection.Output;
-                SqlParameter pPeriod = cmd.Parameters.Add("@ActivePeriod", SqlDbType.SmallDateTime);
-                pPeriod.Direction = ParameterDirection.Output;
                 cn.Open();
-                cmd.ExecuteNonQuery();
-                BatchID = (Guid)pBatch.Value;
-                txtBatchID.Text = BatchID.ToString();
-                txtActivePeriod.Text = ((DateTime)pPeriod.Value).ToString("yyyy-MM");
+                object p = cmd.ExecuteScalar();
+                if (p == null || p == DBNull.Value) throw new ApplicationException("Active KAR period tidak ditemukan.");
+                txtActivePeriod.Text = Convert.ToDateTime(p).ToString("yyyy-MM");
             }
-            lblStatus.Text = "Batch baru siap. Upload Billing_member dan file optional.";
+            lblStatus.Text = "Sesi upload baru siap. Upload Billing_member dan file optional.";
             lblStatus.CssClass = "alert alert-info d-block mb-0";
             SetProcessState(false);
         }
@@ -141,7 +149,7 @@ namespace BillingWeb
                 {
                     cmd.CommandType = CommandType.StoredProcedure;
                     cmd.CommandTimeout = 0;
-                    cmd.Parameters.Add("@BatchID", SqlDbType.UniqueIdentifier).Value = BatchID;
+                    AddTvpParameters(cmd);
                     cmd.Parameters.Add("@CompanyID", SqlDbType.VarChar, 10).Value = txtCompany.Text.Trim();
                     cmd.Parameters.Add("@LocationID", SqlDbType.VarChar, 3).Value = txtLocation.Text.Trim();
                     cmd.Parameters.Add("@UpdateUser", SqlDbType.VarChar, 10).Value = SafeUser();
@@ -212,7 +220,7 @@ namespace BillingWeb
                 {
                     cmd.CommandType = CommandType.StoredProcedure;
                     cmd.CommandTimeout = 0;
-                    cmd.Parameters.Add("@BatchID", SqlDbType.UniqueIdentifier).Value = BatchID;
+                    AddTvpParameters(cmd);
                     cmd.Parameters.Add("@CompanyID", SqlDbType.VarChar, 10).Value = txtCompany.Text.Trim();
                     cmd.Parameters.Add("@LocationID", SqlDbType.VarChar, 3).Value = txtLocation.Text.Trim();
                     cmd.Parameters.Add("@UpdateUser", SqlDbType.VarChar, 10).Value = SafeUser();
@@ -239,7 +247,6 @@ namespace BillingWeb
                 DataTable src = ReadDelimited(fuMember.PostedFile.InputStream, ',');
                 RequireHeaders(src, "unitno", "date_trans", "description", "amount");
                 DataTable dt = new DataTable();
-                dt.Columns.Add("BatchID", typeof(Guid));
                 dt.Columns.Add("RowNo", typeof(int));
                 dt.Columns.Add("UnitNo", typeof(string));
                 dt.Columns.Add("DateTrans", typeof(DateTime));
@@ -251,15 +258,14 @@ namespace BillingWeb
                     if (IsBlankRow(r)) continue;
                     row++;
                     DataRow n = dt.NewRow();
-                    n["BatchID"] = BatchID; n["RowNo"] = row;
+                    n["RowNo"] = row;
                     n["UnitNo"] = Text(r, "unitno");
                     n["DateTrans"] = ParseDate(Text(r, "date_trans"));
                     n["Description"] = Text(r, "description");
                     n["Amount"] = ParseMoney(Text(r, "amount"));
                     dt.Rows.Add(n);
                 }
-                ReplaceStage("dbo.KTA_W_BillingMember", dt);
-                SetUploaded("Member");
+                Session[MemberKey] = dt;
                 lblMember.Text = row + " rows uploaded.";
                 lblMember.CssClass = "text-success small d-block mt-1";
                 ValidateAndRefresh();
@@ -305,8 +311,7 @@ namespace BillingWeb
                     n["PeriodFrom"] = from; n["PeriodThru"] = thru;
                     dt.Rows.Add(n);
                 }
-                ReplaceStage("dbo.KTA_W_BillingMonthly", dt);
-                SetUploaded("Monthly");
+                Session[MonthlyKey] = dt;
                 chkMonthlyNA.Checked = false;
                 SetOptionalUnavailable("Monthly", false);
                 lblMonthly.Text = row + " rows uploaded.";
@@ -355,7 +360,7 @@ namespace BillingWeb
                         ParseRange(Cell(ws, r, periodCol), out from, out thru);
                         row++;
                         DataRow n = dt.NewRow();
-                        n["BatchID"] = BatchID; n["RowNo"] = row;
+                        n["RowNo"] = row;
                         n["ChargingCardName"] = name;
                         n["ChargingCardNo"] = cardNoCol < 0 ? "" : Cell(ws, r, cardNoCol);
                         n["Currency"] = currencyCol < 0 ? "" : Cell(ws, r, currencyCol);
@@ -365,8 +370,7 @@ namespace BillingWeb
                         dt.Rows.Add(n);
                     }
                 }
-                ReplaceStage("dbo.KTA_W_BillingCard", dt);
-                SetUploaded("Card");
+                Session[CardKey] = dt;
                 chkCardNA.Checked = false;
                 SetOptionalUnavailable("Card", false);
                 lblCard.Text = dt.Rows.Count + " rows uploaded.";
@@ -376,52 +380,19 @@ namespace BillingWeb
             catch (Exception ex) { ShowError(ex); }
         }
 
-        private void ReplaceStage(string tableName, DataTable dt)
-        {
-            using (SqlConnection cn = new SqlConnection(ConnectionString))
-            {
-                cn.Open();
-                using (SqlCommand cmd = new SqlCommand("DELETE FROM " + tableName + " WHERE BatchID=@BatchID", cn))
-                {
-                    cmd.Parameters.Add("@BatchID", SqlDbType.UniqueIdentifier).Value = BatchID;
-                    cmd.ExecuteNonQuery();
-                }
-                using (SqlBulkCopy bc = new SqlBulkCopy(cn))
-                {
-                    bc.DestinationTableName = tableName;
-                    bc.BatchSize = 1000;
-                    foreach (DataColumn c in dt.Columns) bc.ColumnMappings.Add(c.ColumnName, c.ColumnName);
-                    bc.WriteToServer(dt);
-                }
-            }
-        }
-
-        private void SetUploaded(string source)
-        {
-            string field = source == "Member" ? "MemberUploaded" : (source == "Card" ? "CardUploaded" : "MonthlyUploaded");
-            string naField = source == "Card" ? "CardUnavailableConfirmed" : (source == "Monthly" ? "MonthlyUnavailableConfirmed" : "");
-            string sql = "UPDATE dbo.KTA_W_BillingBatch SET " + field + "=1";
-            if (!String.IsNullOrWhiteSpace(naField)) sql += ", " + naField + "=0";
-            sql += " WHERE BatchID=@BatchID";
-            using (SqlConnection cn = new SqlConnection(ConnectionString))
-            using (SqlCommand cmd = new SqlCommand(sql, cn))
-            {
-                cmd.Parameters.Add("@BatchID", SqlDbType.UniqueIdentifier).Value = BatchID;
-                cn.Open(); cmd.ExecuteNonQuery();
-            }
-        }
-
         private void SetOptionalUnavailable(string source, bool value)
         {
-            if (BatchID == Guid.Empty) return;
-            string field = source == "Card" ? "CardUnavailableConfirmed" : "MonthlyUnavailableConfirmed";
-            string uploaded = source == "Card" ? "CardUploaded" : "MonthlyUploaded";
-            using (SqlConnection cn = new SqlConnection(ConnectionString))
-            using (SqlCommand cmd = new SqlCommand("UPDATE dbo.KTA_W_BillingBatch SET " + field + "=@Value, " + uploaded + "=CASE WHEN @Value=1 THEN 0 ELSE " + uploaded + " END WHERE BatchID=@BatchID", cn))
+            if (source == "Card")
             {
-                cmd.Parameters.Add("@Value", SqlDbType.Bit).Value = value;
-                cmd.Parameters.Add("@BatchID", SqlDbType.UniqueIdentifier).Value = BatchID;
-                cn.Open(); cmd.ExecuteNonQuery();
+                Session[CardNAKey] = value;
+                if (value) Session[CardKey] = EmptyCard();
+                else if (Session[CardKey] == null) Session[CardKey] = EmptyCard();
+            }
+            else
+            {
+                Session[MonthlyNAKey] = value;
+                if (value) Session[MonthlyKey] = EmptyMonthly();
+                else if (Session[MonthlyKey] == null) Session[MonthlyKey] = EmptyMonthly();
             }
         }
 
@@ -430,10 +401,10 @@ namespace BillingWeb
             try
             {
                 using (SqlConnection cn = new SqlConnection(ConnectionString))
-                using (SqlCommand cmd = new SqlCommand("dbo.usp_KTA_Billing_ValidateBatch", cn))
+                using (SqlCommand cmd = new SqlCommand("dbo.usp_KTA_Billing_Validate", cn))
                 {
                     cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.Parameters.Add("@BatchID", SqlDbType.UniqueIdentifier).Value = BatchID;
+                    AddTvpParameters(cmd);
                     cn.Open();
                     using (SqlDataReader dr = cmd.ExecuteReader())
                     {
@@ -441,20 +412,11 @@ namespace BillingWeb
                         {
                             int status = Convert.ToInt32(dr["ValidationStatus"]);
                             string msg = dr["ValidationMessage"] == DBNull.Value ? "" : dr["ValidationMessage"].ToString();
-                            DateTime p = Convert.ToDateTime(dr["ActivePeriod"]);
-                            txtActivePeriod.Text = p.ToString("yyyy-MM");
-                            if (status == 1)
-                            {
-                                lblStatus.Text = "Validation OK. Semua source sesuai periode KAR aktif.";
-                                lblStatus.CssClass = "alert alert-success d-block mb-0";
-                                SetProcessState(false);
-                            }
-                            else
-                            {
-                                lblStatus.Text = msg;
-                                lblStatus.CssClass = "alert alert-danger d-block mb-0";
-                                SetProcessState(false);
-                            }
+                            if (dr["ActivePeriod"] != DBNull.Value)
+                                txtActivePeriod.Text = Convert.ToDateTime(dr["ActivePeriod"]).ToString("yyyy-MM");
+                            lblStatus.Text = status == 1 ? "Validation OK. Semua source sesuai periode KAR aktif." : msg;
+                            lblStatus.CssClass = status == 1 ? "alert alert-success d-block mb-0" : "alert alert-danger d-block mb-0";
+                            SetProcessState(false);
                         }
                     }
                 }
@@ -464,14 +426,8 @@ namespace BillingWeb
 
         private bool CanPreview()
         {
-            using (SqlConnection cn = new SqlConnection(ConnectionString))
-            using (SqlCommand cmd = new SqlCommand("SELECT ValidationStatus FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID", cn))
-            {
-                cmd.Parameters.Add("@BatchID", SqlDbType.UniqueIdentifier).Value = BatchID;
-                cn.Open();
-                object v = cmd.ExecuteScalar();
-                return v != null && Convert.ToInt32(v) == 1;
-            }
+            if (BatchID == Guid.Empty || MemberData.Rows.Count == 0) return false;
+            return true; // The Validate SP is called immediately before Preview/Process.
         }
 
         private void LoadPreview()
@@ -482,20 +438,21 @@ namespace BillingWeb
             using (SqlDataAdapter da = new SqlDataAdapter(cmd))
             {
                 cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.Add("@BatchID", SqlDbType.UniqueIdentifier).Value = BatchID;
+                AddTvpParameters(cmd);
                 da.Fill(ds);
             }
-            gvSummary.DataSource = ds.Tables.Count > 0 ? ds.Tables[0] : null;
+            // Result 0 is validation status; results 1-3 are summary, detail and availability.
+            gvSummary.DataSource = ds.Tables.Count > 1 ? ds.Tables[1] : null;
             gvSummary.DataBind();
-            gvDetail.DataSource = ds.Tables.Count > 1 ? ds.Tables[1] : null;
+            gvDetail.DataSource = ds.Tables.Count > 2 ? ds.Tables[2] : null;
             gvDetail.DataBind();
-            gvSource.DataSource = ds.Tables.Count > 2 ? ds.Tables[2] : null;
+            gvSource.DataSource = ds.Tables.Count > 3 ? ds.Tables[3] : null;
             gvSource.DataBind();
         }
 
         private void SetProcessState(bool completed)
         {
-            bool enabled = !completed && BatchID != Guid.Empty && CanPreviewSafe();
+            bool enabled = !completed && BatchID != Guid.Empty && MemberData.Rows.Count > 0;
             btnProcess.Enabled = enabled;
             btnDummyStatementRun.Enabled = !completed;
             btnPreview.Enabled = !completed;
@@ -521,6 +478,45 @@ namespace BillingWeb
             lblDummyStatement.Text = "";
             lblMember.Text = lblCard.Text = lblMonthly.Text = "";
             chkCardNA.Checked = false; chkMonthlyNA.Checked = false;
+        }
+
+        private void AddTvpParameters(SqlCommand cmd)
+        {
+            cmd.Parameters.Add("@CompanyID", SqlDbType.VarChar, 10).Value = txtCompany.Text.Trim();
+            cmd.Parameters.Add("@LocationID", SqlDbType.VarChar, 3).Value = txtLocation.Text.Trim();
+            SqlParameter m = cmd.Parameters.AddWithValue("@BillingMember", MemberData);
+            m.SqlDbType = SqlDbType.Structured; m.TypeName = "dbo.Type_KTA_BillingMember";
+            SqlParameter c = cmd.Parameters.AddWithValue("@BillingCard", CardData);
+            c.SqlDbType = SqlDbType.Structured; c.TypeName = "dbo.Type_KTA_BillingCard";
+            SqlParameter mo = cmd.Parameters.AddWithValue("@BillingMonthly", MonthlyData);
+            mo.SqlDbType = SqlDbType.Structured; mo.TypeName = "dbo.Type_KTA_BillingMonthly";
+            cmd.Parameters.Add("@CardUnavailableConfirmed", SqlDbType.Bit).Value = Convert.ToBoolean(Session[CardNAKey] ?? false);
+            cmd.Parameters.Add("@MonthlyUnavailableConfirmed", SqlDbType.Bit).Value = Convert.ToBoolean(Session[MonthlyNAKey] ?? false);
+        }
+
+        private static DataTable EmptyMember()
+        {
+            DataTable t = new DataTable();
+            t.Columns.Add("RowNo", typeof(int)); t.Columns.Add("UnitNo", typeof(string));
+            t.Columns.Add("DateTrans", typeof(DateTime)); t.Columns.Add("Description", typeof(string));
+            t.Columns.Add("Amount", typeof(decimal)); return t;
+        }
+
+        private static DataTable EmptyCard()
+        {
+            DataTable t = new DataTable();
+            t.Columns.Add("RowNo", typeof(int)); t.Columns.Add("ChargingCardName", typeof(string));
+            t.Columns.Add("ChargingCardNo", typeof(string)); t.Columns.Add("Currency", typeof(string));
+            t.Columns.Add("TotalPowerCost", typeof(decimal)); t.Columns.Add("TotalPowerConsumption", typeof(decimal));
+            t.Columns.Add("PeriodFrom", typeof(DateTime)); t.Columns.Add("PeriodThru", typeof(DateTime)); return t;
+        }
+
+        private static DataTable EmptyMonthly()
+        {
+            DataTable t = new DataTable();
+            t.Columns.Add("RowNo", typeof(int)); t.Columns.Add("DriverAccount", typeof(string));
+            t.Columns.Add("SubtotalAmount", typeof(decimal)); t.Columns.Add("SubtotalPowerUsage", typeof(decimal));
+            t.Columns.Add("PeriodFrom", typeof(DateTime)); t.Columns.Add("PeriodThru", typeof(DateTime)); return t;
         }
 
         private byte[] ExportCrystalStatement(DataSet data, string unitFrom, string unitThru)
