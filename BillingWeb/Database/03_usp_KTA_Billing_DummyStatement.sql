@@ -28,7 +28,7 @@ BEGIN
  SET NOCOUNT ON;
  SET XACT_ABORT ON;
 
- DECLARE @Period smalldatetime;
+ DECLARE @Period smalldatetime,@ReportPeriod varchar(6);
  SELECT @Period=ActivePeriod
  FROM dbo.KTA_W_BillingBatch
  WHERE BatchID=@BatchID AND CompanyID=@CompanyID AND LocationID=@LocationID
@@ -38,6 +38,8 @@ BEGIN
   RAISERROR('Dummy statement requires a validated batch for this company/location.',16,1);
   RETURN;
  END
+
+ SET @ReportPeriod=CONVERT(varchar(6),@Period,112);
 
  IF @ByWhat NOT IN ('1','2','')
  BEGIN
@@ -70,7 +72,7 @@ BEGIN
        @UnitNoThru=@UnitNoThru,
        @GroupIDFrom=@GroupIDFrom,
        @GroupIDThru=@GroupIDThru,
-       @Period=CONVERT(varchar(6),@Period,112),
+       @Period=@ReportPeriod,
        @ByWhat=@ByWhat;
 
   ROLLBACK TRANSACTION;
