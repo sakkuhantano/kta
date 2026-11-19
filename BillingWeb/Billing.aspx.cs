@@ -163,6 +163,7 @@ namespace BillingWeb
                     return;
                 }
 
+                ds.DataSetName = "sp_KTA_rpt_BillingStatement";
                 ds.Tables[0].TableName = "sp_KTA_rpt_BillingStatement";
                 try
                 {
