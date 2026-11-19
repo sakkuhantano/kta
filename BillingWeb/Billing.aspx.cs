@@ -83,6 +83,7 @@ namespace BillingWeb
             Session[MonthlyKey] = EmptyMonthly();
             Session[CardNAKey] = false;
             Session[MonthlyNAKey] = false;
+            Session["KTA_Billing_ValidationOK_" + BatchID] = false;
             txtBatchID.Text = "Session " + BatchID.ToString("N").Substring(0, 12);
             using (SqlConnection cn = new SqlConnection(ConnectionString))
             using (SqlCommand cmd = new SqlCommand("SELECT ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KAR'+@CompanyID+@LocationID", cn))
@@ -382,12 +383,14 @@ namespace BillingWeb
             if (source == "Card")
             {
                 Session[CardNAKey] = value;
+                Session["KTA_Billing_ValidationOK_" + BatchID] = false;
                 if (value) Session[CardKey] = EmptyCard();
                 else if (Session[CardKey] == null) Session[CardKey] = EmptyCard();
             }
             else
             {
                 Session[MonthlyNAKey] = value;
+                Session["KTA_Billing_ValidationOK_" + BatchID] = false;
                 if (value) Session[MonthlyKey] = EmptyMonthly();
                 else if (Session[MonthlyKey] == null) Session[MonthlyKey] = EmptyMonthly();
             }
@@ -395,6 +398,7 @@ namespace BillingWeb
 
         private void ValidateAndRefresh()
         {
+            Session["KTA_Billing_ValidationOK_" + BatchID] = false;
             try
             {
                 using (SqlConnection cn = new SqlConnection(ConnectionString))
@@ -411,6 +415,7 @@ namespace BillingWeb
                             string msg = dr["ValidationMessage"] == DBNull.Value ? "" : dr["ValidationMessage"].ToString();
                             if (dr["ActivePeriod"] != DBNull.Value)
                                 txtActivePeriod.Text = Convert.ToDateTime(dr["ActivePeriod"]).ToString("yyyy-MM");
+                            Session["KTA_Billing_ValidationOK_" + BatchID] = (status == 1);
                             lblStatus.Text = status == 1 ? "Validation OK. Semua source sesuai periode KAR aktif." : msg;
                             lblStatus.CssClass = status == 1 ? "alert alert-success d-block mb-0" : "alert alert-danger d-block mb-0";
                             SetProcessState(false);
@@ -424,7 +429,7 @@ namespace BillingWeb
         private bool CanPreview()
         {
             if (BatchID == Guid.Empty || MemberData.Rows.Count == 0) return false;
-            return true; // The Validate SP is called immediately before Preview/Process.
+            return Convert.ToBoolean(Session["KTA_Billing_ValidationOK_" + BatchID] ?? false);
         }
 
         private void LoadPreview()
