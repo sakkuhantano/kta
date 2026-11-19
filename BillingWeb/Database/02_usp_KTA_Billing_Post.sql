@@ -153,6 +153,70 @@ BEGIN
                   AND x.UnitNo=u.UnitNo
                   AND CONVERT(varchar(6),x.BillDate,112)=CONVERT(varchar(6),@PrevPeriod,112));
 
+   /*
+     Load LPC source rows once for all eligible units.
+     This is the set-based equivalent of sp_KTA_selectLPC, avoiding 2,700
+     separate stored-procedure executions while retaining its filters/order.
+   */
+   DECLARE @LPCPeriodText varchar(6);
+   SET @LPCPeriodText=CONVERT(varchar(6),@Period,112);
+
+   CREATE TABLE #LPC(
+      KeyHD int,DocumentNo varchar(10),DocumentDate smalldatetime,DueDate smalldatetime,
+      IncomeCode varchar(3),CurrencyID varchar(3),UnitNo varchar(10),OwnerID varchar(10),
+      BillDate smalldatetime,RecordType varchar(2),RefNo varchar(10),RKDate smalldatetime,
+      Amount money,StartDate smalldatetime,EndDate smalldatetime,OffsetAmount money
+   );
+
+   INSERT #LPC
+   SELECT h.KeyHD,h.DocumentNo,h.DocumentDate,h.DueDate,h.IncomeCode,h.CurrencyID,h.UnitNo,h.OwnerID,
+          ISNULL(z.BillDate,h.DocumentDate),d.RecordType,d.RefNo,d.RKDate,d.Amount,
+          CAST(CONVERT(varchar(6),@PrevPeriod,112)+RIGHT('00'+CAST(
+             CASE WHEN @LPCPeriodText<=CONVERT(varchar(6),z1.StartingNewBilling,112)
+                  THEN z1.PreviousBillDate ELSE z1.BillDate END AS varchar(2)),2) AS smalldatetime),
+          DATEADD(day,-1,CAST(@LPCPeriodText+RIGHT('00'+CAST(z1.BillDate AS varchar(2)),2) AS smalldatetime)),
+          ISNULL(dd.Amount,0)
+   FROM dbo.KTA_T_H_Outstanding h
+   INNER JOIN dbo.KTA_T_D_Outstanding d ON d.KeyHD=h.KeyHD
+   INNER JOIN (
+       dbo.KTA_M_Owner x
+       INNER JOIN dbo.KTA_M_Unit y
+         ON x.CompanyID=y.CompanyID AND x.LocationID=y.LocationID AND x.OwnerID=y.OwnerID
+   ) ON y.CompanyID=h.CompanyID AND y.LocationID=h.LocationID AND y.UnitNo=h.UnitNo
+   INNER JOIN dbo.KTA_M_Penalty z1 ON z1.CompanyID=h.CompanyID AND z1.LocationID=h.LocationID
+   INNER JOIN @Units eligible ON eligible.UnitNo=h.UnitNo
+   LEFT JOIN dbo.KTA_T_D_Outstanding dd
+     INNER JOIN dbo.KTA_T_H_Outstanding hh
+       ON dd.KeyHD=hh.KeyHD AND dd.RecordType='1' AND dd.Amount<0
+     ON hh.DocumentNo=h.DocumentNo AND hh.TxType=h.TxType AND hh.UnitNo=h.UnitNo
+   LEFT JOIN (
+       SELECT bh.CompanyID,bh.LocationID,bh.UnitNo,bh.BillDate,bd.InvoiceNo,bd.IncomeCode
+       FROM dbo.KTA_T_D_Billing bd
+       INNER JOIN dbo.KTA_T_H_Billing bh ON bd.KeyHD=bh.KeyHD
+       WHERE bd.IncomeCode IN ('WOL','WOM')
+   ) z ON z.CompanyID=h.CompanyID AND z.LocationID=h.LocationID AND z.UnitNo=h.UnitNo
+       AND z.IncomeCode=h.IncomeCode AND z.InvoiceNo=h.DocumentNo
+   WHERE x.Penalty='y'
+     AND h.CompanyID=@CompanyID AND h.LocationID=@LocationID
+     AND h.UnitNo IN (SELECT UnitNo FROM @Units)
+     AND (h.PaidDate='' OR CONVERT(varchar(6),h.PaidDate,112)=CONVERT(varchar(6),@PrevPeriod,112))
+     AND d.RefNo<>''
+     AND EXISTS(
+       SELECT a.CompanyID,a.LocationID,a.DocumentNo,a.TxType
+       FROM dbo.KTA_T_H_Outstanding a
+       INNER JOIN dbo.KTA_T_D_Outstanding b ON a.KeyHD=b.KeyHD
+       WHERE b.RefNo<>''
+         AND a.CompanyID=h.CompanyID AND a.LocationID=h.LocationID
+         AND a.DocumentNo=h.DocumentNo AND a.TxType=h.TxType AND a.OwnerID=h.OwnerID
+         AND a.DueDate<=DATEADD(day,-1,CAST(@LPCPeriodText+RIGHT('00'+CAST(z1.BillDate AS varchar(2)),2) AS smalldatetime))
+         AND CASE WHEN b.RecordType='1' THEN b.RefDate ELSE b.RKDate END<=a.DueDate
+         AND CASE WHEN b.RecordType='1' THEN b.RefDate ELSE b.RKDate END<=DATEADD(day,-1,CAST(@LPCPeriodText+RIGHT('00'+CAST(z1.BillDate AS varchar(2)),2) AS smalldatetime))
+       GROUP BY a.CompanyID,a.LocationID,a.DocumentNo,a.TxType
+       HAVING SUM(CASE WHEN b.RecordType='1' THEN b.Amount ELSE -b.Amount END)>0
+     );
+
+   CREATE CLUSTERED INDEX IX_LPC_Unit_KeyHD ON #LPC(UnitNo,KeyHD,RecordType,RKDate);
+
    DECLARE @RowID int,@MaxRowID int;
    SELECT @RowID=1,@MaxRowID=COUNT(*) FROM @Units;
 
@@ -304,18 +368,7 @@ BEGIN
         FROM dbo.KTA_T_D_Billing WHERE KeyHD=@KeyHD;
       END
 
-      /* Legacy VB6 LPC state machine, ported using the same sp_KTA_selectLPC order. */
-      CREATE TABLE #LPC(
-       KeyHD int,DocumentNo varchar(10),DocumentDate smalldatetime,DueDate smalldatetime,
-       IncomeCode varchar(3),CurrencyID varchar(3),UnitNo varchar(10),OwnerID varchar(10),
-       BillDate smalldatetime,RecordType varchar(2),RefNo varchar(10),RKDate smalldatetime,
-       Amount money,StartDate smalldatetime,EndDate smalldatetime,OffsetAmount money);
-
-      DECLARE @LPCPeriod varchar(6);
-      SET @LPCPeriod=CONVERT(varchar(6),@Period,112);
-      INSERT #LPC
-      EXEC dbo.sp_KTA_selectLPC @CompanyID,@LocationID,@UnitNo,@LPCPeriod;
-
+      /* Legacy VB6 LPC state machine over the batch-wide #LPC rows. */
       DECLARE @LPCBreak int=9,@LPCKeyHD int,@LPCDueDate smalldatetime,@LPCOuts money,
               @LPCMonth int=DAY(@PrevPeriod),@LPCTotPenalty money=0,@LPCDoc varchar(10),
               @LPCStart smalldatetime,@LPCEnd smalldatetime,@LPCCharges money=0,
@@ -332,6 +385,7 @@ BEGIN
        SELECT KeyHD,DocumentNo,DocumentDate,DueDate,IncomeCode,CurrencyID,UnitNo,OwnerID,
               BillDate,RecordType,RefNo,RKDate,Amount,StartDate,EndDate,OffsetAmount
        FROM #LPC
+       WHERE UnitNo=@UnitNo
        ORDER BY KeyHD,CASE WHEN RecordType='1' THEN 1 WHEN RecordType='3' THEN 2 ELSE 3 END,RKDate;
 
       DECLARE @nKey int,@nDoc varchar(10),@nDocDate smalldatetime,@nDue smalldatetime,
@@ -420,7 +474,7 @@ BEGIN
         END
        END
       END
-      CLOSE lpc_cur; DEALLOCATE lpc_cur; DROP TABLE #LPC;
+      CLOSE lpc_cur; DEALLOCATE lpc_cur;
 
       UPDATE dbo.KTA_T_H_Billing
       SET NewBilling=@Total,NewBalance=Previous+@Total-Payment
@@ -428,6 +482,8 @@ BEGIN
 
       SET @RowID=@RowID+1;
    END
+
+   DROP TABLE #LPC;
 
    /* Outstanding + Sales Journal: exact VB6 grouping boundaries. */
    ;WITH BI AS
