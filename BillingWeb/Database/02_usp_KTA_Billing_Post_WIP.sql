@@ -43,12 +43,12 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID AND ValidationStatus=1)
   RAISERROR('Billing batch has not passed validation.',16,1);
 
- SET @BillDate=DATEADD(day,@TermDue*0,@Period);
- SELECT @BillDate=DATEADD(day,0,DATEADD(day,
-       DAY(@BillDate)*0 + ISNULL((SELECT BillDate FROM dbo.KTA_M_Penalty WHERE CompanyID=@CompanyID AND LocationID=@LocationID),0)-1,
-       DATEADD(month,DATEDIFF(month,0,@Period),0)));
- IF @BillDate IS NULL OR DAY(@BillDate)=0 SET @BillDate=@Period;
- SET @DueDate=DATEADD(day,@TermDue,@BillDate)-1;
+ DECLARE @BillDateDay tinyint;
+ SELECT @BillDateDay=BillDate FROM dbo.KTA_M_Penalty
+ WHERE CompanyID=@CompanyID AND LocationID=@LocationID;
+ IF @BillDateDay IS NULL OR @BillDateDay=0 RAISERROR('KTA_M_Penalty.BillDate is not configured.',16,1);
+ SET @BillDate=DATEADD(day,@BillDateDay-1,DATEADD(month,DATEDIFF(month,0,@Period),0));
+ SET @DueDate=DATEADD(day,@TermDue-1,@BillDate);
  SET @PrevPeriod=DATEADD(day,-1,DATEADD(month,DATEDIFF(month,0,@Period),0));
 
  BEGIN TRANSACTION;
@@ -245,6 +245,112 @@ BEGIN
         FROM dbo.KTA_T_D_Billing WHERE KeyHD=@KeyHD;
       END
 
+      /* Legacy VB6 LPC state machine, ported using the same sp_KTA_selectLPC order. */
+      CREATE TABLE #LPC(
+       KeyHD int,DocumentNo varchar(10),DocumentDate smalldatetime,DueDate smalldatetime,
+       IncomeCode varchar(3),CurrencyID varchar(3),UnitNo varchar(10),OwnerID varchar(10),
+       BillDate smalldatetime,RecordType varchar(2),RefNo varchar(10),RKDate smalldatetime,
+       Amount money,StartDate smalldatetime,EndDate smalldatetime,OffsetAmount money);
+
+      INSERT #LPC
+      EXEC dbo.sp_KTA_selectLPC @CompanyID,@LocationID,@UnitNo,CONVERT(varchar(6),@Period,112);
+
+      DECLARE @LPCBreak int=9,@LPCKeyHD int,@LPCDueDate smalldatetime,@LPCOuts money,
+              @LPCMonth int=DAY(@PrevPeriod),@LPCTotPenalty money=0,@LPCDoc varchar(10),
+              @LPCStart smalldatetime,@LPCEnd smalldatetime,@LPCCharges money=0,
+              @LPCSeq int,@LPCCal money,@LPCBillDate smalldatetime,@LPCOwner varchar(10),
+              @LPCUnit varchar(10),@LPCIncome varchar(3),@LPCCurrency varchar(3),
+              @LPCOuts1 money=0,@LPCIncome1 varchar(3)='',@LPCRKDate1 smalldatetime,
+              @LPCPeriod1 smalldatetime;
+
+      SET @LPCPeriod1=CASE WHEN MONTH(@Period)=3 THEN DATEFROMPARTS(YEAR(@Period),MONTH(@Period),2) ELSE @PrevPeriod END;
+
+      DECLARE lpc_cur CURSOR LOCAL FAST_FORWARD FOR
+       SELECT KeyHD,DocumentNo,DocumentDate,DueDate,IncomeCode,CurrencyID,UnitNo,OwnerID,
+              BillDate,RecordType,RefNo,RKDate,Amount,StartDate,EndDate,OffsetAmount
+       FROM #LPC
+       ORDER BY KeyHD,CASE WHEN RecordType='1' THEN 1 WHEN RecordType='3' THEN 2 ELSE 3 END,RKDate;
+
+      DECLARE @nKey int,@nDoc varchar(10),@nDocDate smalldatetime,@nDue smalldatetime,
+              @nIncome varchar(3),@nCur varchar(3),@nUnit varchar(10),@nOwner varchar(10),
+              @nBill smalldatetime,@nRT varchar(2),@nRef varchar(10),@nRK smalldatetime,
+              @nAmt money,@nStart smalldatetime,@nEnd smalldatetime,@nOffset money;
+
+      OPEN lpc_cur;
+      FETCH NEXT FROM lpc_cur INTO @nKey,@nDoc,@nDocDate,@nDue,@nIncome,@nCur,@nUnit,@nOwner,
+        @nBill,@nRT,@nRef,@nRK,@nAmt,@nStart,@nEnd,@nOffset;
+
+      WHILE @@FETCH_STATUS=0
+      BEGIN
+       IF @LPCBreak>0
+       BEGIN
+        SET @LPCCurrency=@nCur; SET @LPCOuts=@nAmt; SET @LPCKeyHD=@nKey; SET @LPCSeq=0;
+        SET @LPCDueDate=@nDue; SET @LPCDoc=@nDoc; SET @LPCStart=@nStart; SET @LPCEnd=@nEnd;
+        SET @LPCBillDate=@nDocDate; SET @LPCOwner=@nOwner; SET @LPCUnit=@nUnit; SET @LPCIncome=@nIncome;
+        IF @LPCBreak>1 SET @LPCTotPenalty=0;
+       END
+
+       IF @nRT='4' AND @nRK>=@LPCStart AND @nRK<=@LPCEnd AND @nRK>@LPCDueDate
+       BEGIN
+        SET @LPCCal=CASE WHEN @LPCOuts>@nAmt THEN @nAmt ELSE @LPCOuts END;
+        SET @LPCCharges=ROUND((DATEDIFF(day,@LPCStart,@nRK)+1.0)/NULLIF(@LPCMonth,0)*@LPCCal*(@Penalty/100.0),0);
+        SET @LPCTotPenalty=@LPCTotPenalty+@LPCCharges; SET @LPCSeq=@LPCSeq+1;
+        INSERT dbo.KTA_T_ProcessBilling_Calculation
+        (CompanyID,LocationID,Period,UnitNo,BillingNo,IncomeCode,SeqNo,BillDate,DueDate,OwnerID,CurrencyID,
+         BillAmount,CalDay,CalMonth,CalAmount,CalPersen,Charges,UpdateUser,UpdateDate)
+        VALUES(@CompanyID,@LocationID,CONVERT(varchar(6),@PeriodCAR,112),@LPCUnit,@LPCDoc,@LPCIncome,@LPCSeq,
+         @LPCBillDate,@LPCDueDate,@LPCOwner,@LPCCurrency,@LPCCal,DATEDIFF(day,@LPCStart,@nRK)+1,@LPCMonth,
+         @LPCCal,@Penalty,@LPCCharges,@UpdateUser,GETDATE());
+        SET @LPCRKDate1=@nRK;
+       END
+
+       IF @nRT<>'1' AND @nRK<=@nEnd SET @LPCOuts=@LPCOuts-@nAmt;
+
+       FETCH NEXT FROM lpc_cur INTO @nKey,@nDoc,@nDocDate,@nDue,@nIncome,@nCur,@nUnit,@nOwner,
+        @nBill,@nRT,@nRef,@nRK,@nAmt,@nStart,@nEnd,@nOffset;
+
+       IF @@FETCH_STATUS<>0 SET @LPCBreak=9;
+       ELSE IF @nKey<>@LPCKeyHD SET @LPCBreak=1;
+       ELSE SET @LPCBreak=0;
+
+       IF @LPCBreak>0
+       BEGIN
+        IF @LPCOuts>0 AND CONVERT(varchar(6),@LPCDueDate,112)<=CONVERT(varchar(6),@LPCPeriod1,112)
+        BEGIN
+         SET @LPCCharges=ROUND(@LPCOuts*(DATEDIFF(day,@LPCStart,@LPCEnd)+1.0)/NULLIF(@LPCMonth,0)*(@Penalty/100.0),0);
+         SET @LPCTotPenalty=@LPCTotPenalty+@LPCCharges; SET @LPCSeq=@LPCSeq+1;
+         INSERT dbo.KTA_T_ProcessBilling_Calculation
+         (CompanyID,LocationID,Period,UnitNo,BillingNo,IncomeCode,SeqNo,BillDate,DueDate,OwnerID,CurrencyID,
+          BillAmount,CalDay,CalMonth,CalAmount,CalPersen,Charges,UpdateUser,UpdateDate)
+         VALUES(@CompanyID,@LocationID,CONVERT(varchar(6),@PeriodCAR,112),@LPCUnit,@LPCDoc,@LPCIncome,@LPCSeq,
+          @LPCBillDate,@LPCDueDate,@LPCOwner,@LPCCurrency,@LPCOuts,DATEDIFF(day,@LPCStart,@LPCEnd)+1,@LPCMonth,
+          @LPCOuts,@Penalty,@LPCCharges,@UpdateUser,GETDATE());
+        END
+
+        IF @LPCBreak>1 AND @LPCOuts1<0 AND @LPCCharges<>0
+        BEGIN
+         SET @LPCCharges=ROUND(@LPCOuts1*(DATEDIFF(day,@LPCStart,@LPCRKDate1)+1.0)/NULLIF(@LPCMonth,0)*(@Penalty/100.0),0);
+         SET @LPCTotPenalty=@LPCTotPenalty+@LPCCharges; SET @LPCSeq=@LPCSeq+1;
+         INSERT dbo.KTA_T_ProcessBilling_Calculation
+         (CompanyID,LocationID,Period,UnitNo,BillingNo,IncomeCode,SeqNo,BillDate,DueDate,OwnerID,CurrencyID,
+          BillAmount,CalDay,CalMonth,CalAmount,CalPersen,Charges,UpdateUser,UpdateDate)
+         VALUES(@CompanyID,@LocationID,CONVERT(varchar(6),@PeriodCAR,112),@LPCUnit,@LPCDoc,@LPCIncome1,@LPCSeq,
+          @LPCBillDate,@LPCDueDate,@LPCOwner,@LPCCurrency,@LPCOuts1,DATEDIFF(day,@LPCStart,@LPCRKDate1)+1,@LPCMonth,
+          @LPCOuts1,@Penalty,@LPCCharges,@UpdateUser,GETDATE());
+        END
+
+        SET @LPCOuts1=0; SET @LPCIncome1='';
+        IF @LPCTotPenalty>@MinPEC
+        BEGIN
+         SET @Seq=@Seq+1;
+         INSERT dbo.KTA_T_D_Billing(KeyHD,SeqNo,IncomeCode,Amount,InvoiceNo,InvoiceDate,PhoneNo,Description)
+         VALUES(@KeyHD,@Seq,'PEC',@LPCTotPenalty,'','19000101','','');
+         SET @Total=@Total+@LPCTotPenalty;
+        END
+       END
+      END
+      CLOSE lpc_cur; DEALLOCATE lpc_cur; DROP TABLE #LPC;
+
       UPDATE dbo.KTA_T_H_Billing
       SET NewBilling=@Total,NewBalance=Previous+@Total-Payment
       WHERE KeyHD=@KeyHD;
@@ -252,10 +358,140 @@ BEGIN
       SET @RowID=@RowID+1;
    END
 
-   -- Outstanding and Sales Journal are intentionally left for the next
-   -- verified porting stage because their grouping boundary is billing/income
-   -- dependent and must exactly match the VB6 c_Break behavior.
-   RAISERROR('Posting stage incomplete: outstanding/sales-journal port must be completed before production use.',16,1);
+   /* Outstanding + Sales Journal: exact VB6 grouping boundaries. */
+   ;WITH BI AS
+   (
+    SELECT h.BillingNo,h.CompanyID,h.LocationID,h.UnitNo,h.OwnerID,h.BillDate,h.DueDate,h.CurrencyID,
+           d.IncomeCode,SUM(d.Amount) Amount
+    FROM dbo.KTA_T_H_Billing h
+    JOIN dbo.KTA_T_D_Billing d ON d.KeyHD=h.KeyHD
+    WHERE h.CompanyID=@CompanyID AND h.LocationID=@LocationID
+      AND CONVERT(varchar(6),h.BillDate,112)=CONVERT(varchar(6),@PeriodCAR,112)
+      AND h.PrintCode=0 AND d.InvoiceNo='' AND d.Amount<>0
+    GROUP BY h.BillingNo,h.CompanyID,h.LocationID,h.UnitNo,h.OwnerID,h.BillDate,h.DueDate,h.CurrencyID,d.IncomeCode
+   )
+   INSERT dbo.KTA_T_H_Outstanding
+   (CompanyID,LocationID,TxType,DocumentNo,IncomeCode,DocumentDate,DueDate,OwnerID,UnitNo,LocationNo,
+    CurrencyID,PaidDate,CancelDate,Status,UpdateUser,UpdateDate)
+   SELECT CompanyID,LocationID,'B',BillingNo,IncomeCode,BillDate,DueDate,OwnerID,UnitNo,'',
+          CurrencyID,'19000101','19000101',0,@UpdateUser,GETDATE() FROM BI;
+
+   ;WITH BI AS
+   (
+    SELECT h.BillingNo,h.BillDate,h.DueDate,h.UnitNo,h.OwnerID,h.CurrencyID,d.IncomeCode,SUM(d.Amount) Amount
+    FROM dbo.KTA_T_H_Billing h JOIN dbo.KTA_T_D_Billing d ON d.KeyHD=h.KeyHD
+    WHERE h.CompanyID=@CompanyID AND h.LocationID=@LocationID
+      AND CONVERT(varchar(6),h.BillDate,112)=CONVERT(varchar(6),@PeriodCAR,112)
+      AND h.PrintCode=0 AND d.InvoiceNo='' AND d.Amount<>0
+    GROUP BY h.BillingNo,h.BillDate,h.DueDate,h.UnitNo,h.OwnerID,h.CurrencyID,d.IncomeCode
+   )
+   INSERT dbo.KTA_T_D_Outstanding
+   (KeyHD,RecordType,RefNo,RefDate,RKDate,Amount,PaymentNo,CN,UpdateUser,UpdateDate)
+   SELECT oh.KeyHD,'1',BI.BillingNo,BI.BillDate,BI.DueDate,BI.Amount,'',NULL,@UpdateUser,GETDATE()
+   FROM BI JOIN dbo.KTA_T_H_Outstanding oh
+     ON oh.CompanyID=@CompanyID AND oh.LocationID=@LocationID AND oh.TxType='B'
+    AND oh.DocumentNo=BI.BillingNo AND oh.IncomeCode=BI.IncomeCode;
+
+   ;WITH SJ AS
+   (
+    SELECT h.BillingNo,h.BillDate,h.DueDate,h.UnitNo,h.CurrencyID,SUM(d.Amount) TotalAmount
+    FROM dbo.KTA_T_H_Billing h JOIN dbo.KTA_T_D_Billing d ON d.KeyHD=h.KeyHD
+    WHERE h.CompanyID=@CompanyID AND h.LocationID=@LocationID
+      AND CONVERT(varchar(6),h.BillDate,112)=CONVERT(varchar(6),@PeriodCAR,112)
+      AND h.PrintCode=0 AND d.InvoiceNo=''
+    GROUP BY h.BillingNo,h.BillDate,h.DueDate,h.UnitNo,h.CurrencyID
+   )
+   INSERT dbo.AR_T_H_SalesJournal
+   (CompanyID,LocationID,DocumentNo,RecordType,PaymentFirst,RefNo,[Date],DueDate,CurrencyID,OriginalAmount,
+    TenantID,SuiteNo,PrintCode,Status,UpdateUser,UpdateDate,Posted_to_GL,Category,ARType,VAT,PPH23)
+   SELECT @CompanyID,@LocationID,BillingNo,'1',0,'',BillDate,DueDate,CurrencyID,TotalAmount,
+          UnitNo,'',1,0,@UpdateUser,GETDATE(),0,'','B',0,0 FROM SJ;
+
+   DECLARE sj_cur CURSOR LOCAL FAST_FORWARD FOR
+    SELECT h.BillingNo,d.IncomeCode,SUM(d.Amount),MAX(d.PhoneNo),
+           MAX(i.CrAccount),MAX(i.DeptID),MAX(i.Description),h.CurrencyID,h.UnitNo
+    FROM dbo.KTA_T_H_Billing h
+    JOIN dbo.KTA_T_D_Billing d ON d.KeyHD=h.KeyHD
+    JOIN dbo.KTA_M_Income i ON i.CompanyID=h.CompanyID AND i.LocationID=h.LocationID AND i.IncomeCode=d.IncomeCode
+    WHERE h.CompanyID=@CompanyID AND h.LocationID=@LocationID
+      AND CONVERT(varchar(6),h.BillDate,112)=CONVERT(varchar(6),@PeriodCAR,112)
+      AND h.PrintCode=0 AND d.InvoiceNo=''
+    GROUP BY h.BillingNo,d.IncomeCode,h.CurrencyID,h.UnitNo
+    ORDER BY h.BillingNo,d.IncomeCode;
+
+   DECLARE @SBillingNo varchar(10),@SIncome varchar(3),@SAmount money,@SPhone varchar(15),
+           @SCr varchar(10),@SDept varchar(10),@SDesc varchar(50),@SCur varchar(3),@SUnit varchar(5),
+           @SJSKey int,@SJSeq tinyint,@MFEArea money,@MFEMFee money,@MFESF money,
+           @SKFAccount varchar(10),@SKFDept varchar(10),@SKFDesc varchar(50);
+
+   SELECT @SKFAccount=CrAccount,@SKFDept=DeptID,@SKFDesc=Description
+   FROM dbo.KTA_M_Income WHERE CompanyID=@CompanyID AND LocationID=@LocationID AND IncomeCode='SKF';
+
+   OPEN sj_cur;
+   FETCH NEXT FROM sj_cur INTO @SBillingNo,@SIncome,@SAmount,@SPhone,@SCr,@SDept,@SDesc,@SCur,@SUnit;
+   WHILE @@FETCH_STATUS=0
+   BEGIN
+    SELECT @SJSKey=KeyHD FROM dbo.AR_T_H_SalesJournal
+    WHERE CompanyID=@CompanyID AND LocationID=@LocationID AND DocumentNo=@SBillingNo;
+    SELECT @SJSeq=ISNULL(MAX(SeqNo),0) FROM dbo.AR_T_D_SalesJournal WHERE KeyHD=@SJSKey;
+
+    IF @SIncome='MFE'
+    BEGIN
+     SELECT TOP 1 @MFEArea=r.Area,@MFEMFee=r.MaintenanceFee,@MFESF=r.SinkingFund
+     FROM dbo.KTA_M_Unit u JOIN dbo.KTA_M_RoomType r
+       ON r.CompanyID=u.CompanyID AND r.LocationID=u.LocationID AND r.RoomType=u.RoomType
+     WHERE u.CompanyID=@CompanyID AND u.LocationID=@LocationID AND u.UnitNo=@SUnit;
+
+     SET @SJSeq=@SJSeq+1;
+     INSERT dbo.AR_T_D_SalesJournal
+     (KeyHD,SeqNo,SuiteNo,IncomeID,AccountCr,ProfitCenterNo,Description1,Description2,Description3,CurrencyID,
+      OriginalAmount,RpAmount,USAmount,VAT,TaxCode)
+     VALUES(@SJSKey,@SJSeq,'','MFE',@SCr,@SDept,@SDesc,'','',@SCur,@MFEArea*@MFEMFee,
+      CASE WHEN @SCur='IDR' THEN @MFEArea*@MFEMFee ELSE @MFEArea*@MFEMFee*@AcctRate END,
+      CASE WHEN @SCur='IDR' THEN (@MFEArea*@MFEMFee)/NULLIF(@AcctRate,0) ELSE @MFEArea*@MFEMFee END,0,NULL);
+
+     SET @SJSeq=@SJSeq+1;
+     INSERT dbo.AR_T_D_SalesJournal
+     (KeyHD,SeqNo,SuiteNo,IncomeID,AccountCr,ProfitCenterNo,Description1,Description2,Description3,CurrencyID,
+      OriginalAmount,RpAmount,USAmount,VAT,TaxCode)
+     VALUES(@SJSKey,@SJSeq,'','SKF',@SKFAccount,@SKFDept,@SKFDesc,'','',@SCur,@MFEArea*@MFESF,
+      CASE WHEN @SCur='IDR' THEN @MFEArea*@MFESF ELSE @MFEArea*@MFESF*@AcctRate END,
+      CASE WHEN @SCur='IDR' THEN (@MFEArea*@MFESF)/NULLIF(@AcctRate,0) ELSE @MFEArea*@MFESF END,0,NULL);
+    END
+    ELSE
+    BEGIN
+     SET @SJSeq=@SJSeq+1;
+     INSERT dbo.AR_T_D_SalesJournal
+     (KeyHD,SeqNo,SuiteNo,IncomeID,AccountCr,ProfitCenterNo,Description1,Description2,Description3,CurrencyID,
+      OriginalAmount,RpAmount,USAmount,VAT,TaxCode)
+     VALUES(@SJSKey,@SJSeq,'',@SIncome,@SCr,@SDept,@SDesc,
+      CASE WHEN @SIncome='TEC' THEN 'Phone No. '+ISNULL(@SPhone,'') ELSE '' END,'',@SCur,@SAmount,
+      CASE WHEN @SCur='IDR' THEN @SAmount ELSE @SAmount*@AcctRate END,
+      CASE WHEN @SCur='IDR' THEN @SAmount/NULLIF(@AcctRate,0) ELSE @SAmount END,0,NULL);
+    END
+    FETCH NEXT FROM sj_cur INTO @SBillingNo,@SIncome,@SAmount,@SPhone,@SCr,@SDept,@SDesc,@SCur,@SUnit;
+   END
+   CLOSE sj_cur; DEALLOCATE sj_cur;
+
+   UPDATE sj SET OriginalAmount=x.TotalAmount
+   FROM dbo.AR_T_H_SalesJournal sj
+   JOIN (
+    SELECT h.BillingNo,SUM(d.Amount) TotalAmount
+    FROM dbo.KTA_T_H_Billing h JOIN dbo.KTA_T_D_Billing d ON d.KeyHD=h.KeyHD
+    WHERE h.CompanyID=@CompanyID AND h.LocationID=@LocationID
+      AND CONVERT(varchar(6),h.BillDate,112)=CONVERT(varchar(6),@PeriodCAR,112)
+      AND h.PrintCode=0 AND d.InvoiceNo=''
+    GROUP BY h.BillingNo
+   ) x ON x.BillingNo=sj.DocumentNo
+   WHERE sj.CompanyID=@CompanyID AND sj.LocationID=@LocationID;
+
+   INSERT dbo.KTA_T_ProcessBilling
+   (CompanyID,LocationID,Period,Status,UpdateUser,UpdateDate)
+   VALUES(@CompanyID,@LocationID,CONVERT(varchar(6),@PeriodCAR,112),1,@UpdateUser,GETDATE());
+
+   DELETE dbo.KTA_T_BillingPhone
+   WHERE CONVERT(varchar(8),BillDate,112)=
+     CONVERT(varchar(8),DATEADD(day,-1,DATEADD(month,-1,DATEADD(day,1,@Period))),112);
 
    COMMIT TRANSACTION;
  END TRY
