@@ -14,7 +14,6 @@ IF OBJECT_ID('dbo.usp_KTA_Billing_DummyStatement','P') IS NOT NULL
  DROP PROCEDURE dbo.usp_KTA_Billing_DummyStatement
 GO
 CREATE PROCEDURE dbo.usp_KTA_Billing_DummyStatement
- @BatchID uniqueidentifier,
  @CompanyID varchar(10),
  @LocationID varchar(3),
  @UpdateUser varchar(10),
@@ -22,20 +21,22 @@ CREATE PROCEDURE dbo.usp_KTA_Billing_DummyStatement
  @UnitNoThru varchar(10)='',
  @GroupIDFrom varchar(10)='',
  @GroupIDThru varchar(10)='',
- @ByWhat varchar(1)='1'
+ @ByWhat varchar(1)='1',
+ @BillingMember dbo.Type_KTA_BillingMember READONLY,
+ @BillingCard dbo.Type_KTA_BillingCard READONLY,
+ @BillingMonthly dbo.Type_KTA_BillingMonthly READONLY,
+ @CardUnavailableConfirmed bit=0,
+ @MonthlyUnavailableConfirmed bit=0
 AS
 BEGIN
  SET NOCOUNT ON;
  SET XACT_ABORT ON;
 
  DECLARE @Period smalldatetime,@ReportPeriod varchar(6);
- SELECT @Period=ActivePeriod
- FROM dbo.KTA_W_BillingBatch
- WHERE BatchID=@BatchID AND CompanyID=@CompanyID AND LocationID=@LocationID
-   AND ValidationStatus=1;
+ SELECT @Period=ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KAR'+@CompanyID+@LocationID;
  IF @Period IS NULL
  BEGIN
-  RAISERROR('Dummy statement requires a validated batch for this company/location.',16,1);
+  RAISERROR('Active KAR period not found for dummy statement.',16,1);
   RETURN;
  END
 
@@ -55,11 +56,15 @@ BEGIN
     Dummy=1 uses D000000001... IDs and does not touch the real billing autonumber.
   */
   EXEC dbo.usp_KTA_Billing_Post
-       @BatchID=@BatchID,
        @CompanyID=@CompanyID,
        @LocationID=@LocationID,
        @UpdateUser=@UpdateUser,
-       @Dummy=1;
+       @Dummy=1,
+       @BillingMember=@BillingMember,
+       @BillingCard=@BillingCard,
+       @BillingMonthly=@BillingMonthly,
+       @CardUnavailableConfirmed=@CardUnavailableConfirmed,
+       @MonthlyUnavailableConfirmed=@MonthlyUnavailableConfirmed;
 
   /*
     Reuse the exact legacy report dataset and report filters/layout contract.
