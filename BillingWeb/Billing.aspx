@@ -98,6 +98,6 @@
 </div>
 
 <div class="alert alert-secondary small mb-0">
-    Preview hanya membaca staging. Nomor Billing KBI baru dibuat saat tombol <strong>Process Billing</strong> dijalankan dan seluruh posting berada dalam satu transaction SQL.
+    Preview control total hanya membaca staging. Dummy Statement menjalankan kalkulasi dalam transaksi yang di-rollback, memakai nomor sementara D dan tidak mengonsumsi nomor KBI. PDF memakai rptKTA_BillingStatement_New.rpt jika SAP Crystal Reports runtime tersedia di IIS.
 </div>
 </asp:Content>
