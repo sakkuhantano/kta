@@ -118,6 +118,63 @@ namespace BillingWeb
             LoadPreview();
         }
 
+        protected void btnDummyStatement_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                ValidateAndRefresh();
+                if (!CanPreview()) return;
+
+                string unitFrom = (txtDummyUnitFrom.Text ?? "").Trim();
+                string unitThru = (txtDummyUnitThru.Text ?? "").Trim();
+                if (String.IsNullOrWhiteSpace(unitFrom) || String.IsNullOrWhiteSpace(unitThru))
+                    throw new ApplicationException("Isi Unit From dan Unit Thru. Untuk satu unit, isi nomor unit yang sama di kedua field.");
+                if (String.Compare(unitFrom, unitThru, StringComparison.OrdinalIgnoreCase) > 0)
+                    throw new ApplicationException("Unit From tidak boleh lebih besar dari Unit Thru.");
+
+                DataSet ds = new DataSet();
+                using (SqlConnection cn = new SqlConnection(ConnectionString))
+                using (SqlCommand cmd = new SqlCommand("dbo.usp_KTA_Billing_DummyStatement", cn))
+                using (SqlDataAdapter da = new SqlDataAdapter(cmd))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.CommandTimeout = 0;
+                    cmd.Parameters.Add("@BatchID", SqlDbType.UniqueIdentifier).Value = BatchID;
+                    cmd.Parameters.Add("@CompanyID", SqlDbType.VarChar, 10).Value = txtCompany.Text.Trim();
+                    cmd.Parameters.Add("@LocationID", SqlDbType.VarChar, 3).Value = txtLocation.Text.Trim();
+                    cmd.Parameters.Add("@UpdateUser", SqlDbType.VarChar, 10).Value = SafeUser();
+                    cmd.Parameters.Add("@UnitNoFrom", SqlDbType.VarChar, 10).Value = unitFrom;
+                    cmd.Parameters.Add("@UnitNoThru", SqlDbType.VarChar, 10).Value = unitThru;
+                    cmd.Parameters.Add("@GroupIDFrom", SqlDbType.VarChar, 10).Value = "";
+                    cmd.Parameters.Add("@GroupIDThru", SqlDbType.VarChar, 10).Value = "";
+                    cmd.Parameters.Add("@ByWhat", SqlDbType.VarChar, 1).Value = "1";
+                    cn.Open();
+                    da.Fill(ds);
+                }
+
+                if (ds.Tables.Count == 0 || ds.Tables[0].Rows.Count == 0)
+                {
+                    gvDummyStatement.DataSource = null;
+                    gvDummyStatement.DataBind();
+                    lblDummyStatement.Text = "Tidak ada statement untuk rentang unit tersebut. Periksa SendEmail='Y' dan data billing.";
+                    lblDummyStatement.CssClass = "text-warning small d-block mt-2";
+                    return;
+                }
+
+                gvDummyStatement.DataSource = ds.Tables[0];
+                gvDummyStatement.DataBind();
+                lblDummyStatement.Text = "Dummy statement berhasil dibuat untuk " + ds.Tables[0].Rows.Count +
+                    " baris report. Seluruh perubahan billing sudah di-rollback.";
+                lblDummyStatement.CssClass = "text-success small d-block mt-2";
+            }
+            catch (Exception ex)
+            {
+                gvDummyStatement.DataSource = null;
+                gvDummyStatement.DataBind();
+                ShowError(ex);
+            }
+        }
+
         protected void btnProcess_Click(object sender, EventArgs e)
         {
             ValidateAndRefresh();
