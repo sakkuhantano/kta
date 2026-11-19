@@ -7,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Text;
 using System.Web.UI;
 using System.Text.RegularExpressions;
@@ -172,7 +173,7 @@ namespace BillingWeb
                         Regex.Replace(unitFrom, "[^A-Za-z0-9_-]", "") + ".pdf");
                     Response.BinaryWrite(pdf);
                     Response.Flush();
-                    Context.ApplicationInstance.CompleteRequest();
+                    Response.End();
                     return;
                 }
                 catch (Exception crystalEx)
@@ -186,6 +187,10 @@ namespace BillingWeb
                         Server.HtmlEncode(crystalEx.GetBaseException().Message);
                     lblDummyStatement.CssClass = "text-warning small d-block mt-2";
                 }
+            }
+            catch (ThreadAbortException)
+            {
+                // Response.End() intentionally terminates the request after streaming the PDF.
             }
             catch (Exception ex)
             {
