@@ -21,7 +21,7 @@ BEGIN
  DECLARE @Period smalldatetime,@PeriodKAR smalldatetime,@PeriodCAR smalldatetime,@PrevPeriod smalldatetime,
          @BillDate smalldatetime,@DueDate smalldatetime,@TermDue int,
          @Penalty money,@MinPEC money,@HardCopyCharges money,@PPN money,
-         @AcctRate money,@ProcessStatus tinyint,@Err varchar(4000);
+         @AcctRate money,@Err varchar(4000);
 
  SELECT @Period=ActivePeriod FROM dbo.KTA_W_BillingBatch
  WHERE BatchID=@BatchID AND CompanyID=@CompanyID AND LocationID=@LocationID;
@@ -198,7 +198,6 @@ BEGIN
        AND z.IncomeCode=h.IncomeCode AND z.InvoiceNo=h.DocumentNo
    WHERE x.Penalty='y'
      AND h.CompanyID=@CompanyID AND h.LocationID=@LocationID
-     AND h.UnitNo IN (SELECT UnitNo FROM @Units)
      AND (h.PaidDate='' OR CONVERT(varchar(6),h.PaidDate,112)=CONVERT(varchar(6),@PrevPeriod,112))
      AND d.RefNo<>''
      AND EXISTS(
