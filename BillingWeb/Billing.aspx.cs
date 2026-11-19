@@ -6,6 +6,7 @@ using System.Data.SqlClient;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Web.UI;
 using System.Text.RegularExpressions;
@@ -161,11 +162,30 @@ namespace BillingWeb
                     return;
                 }
 
-                gvDummyStatement.DataSource = ds.Tables[0];
-                gvDummyStatement.DataBind();
-                lblDummyStatement.Text = "Dummy statement berhasil dibuat untuk " + ds.Tables[0].Rows.Count +
-                    " baris report. Seluruh perubahan billing sudah di-rollback.";
-                lblDummyStatement.CssClass = "text-success small d-block mt-2";
+                ds.Tables[0].TableName = "sp_KTA_rpt_BillingStatement";
+                try
+                {
+                    byte[] pdf = ExportCrystalStatement(ds);
+                    Response.Clear();
+                    Response.ContentType = "application/pdf";
+                    Response.AddHeader("Content-Disposition", "inline; filename=BillingStatement-DUMMY-" +
+                        Regex.Replace(unitFrom, "[^A-Za-z0-9_-]", "") + ".pdf");
+                    Response.BinaryWrite(pdf);
+                    Response.Flush();
+                    Context.ApplicationInstance.CompleteRequest();
+                    return;
+                }
+                catch (Exception crystalEx)
+                {
+                    // Keep the generated report dataset visible when the SAP Crystal runtime
+                    // or a compatible report binding is not installed on the target IIS server.
+                    gvDummyStatement.DataSource = ds.Tables[0];
+                    gvDummyStatement.DataBind();
+                    lblDummyStatement.Text = "Dataset dummy berhasil dibuat (" + ds.Tables[0].Rows.Count +
+                        " baris) dan transaksi sudah di-rollback. PDF Crystal belum dapat dirender: " +
+                        Server.HtmlEncode(crystalEx.GetBaseException().Message);
+                    lblDummyStatement.CssClass = "text-warning small d-block mt-2";
+                }
             }
             catch (Exception ex)
             {
@@ -495,6 +515,52 @@ namespace BillingWeb
             lblDummyStatement.Text = "";
             lblMember.Text = lblCard.Text = lblMonthly.Text = "";
             chkCardNA.Checked = false; chkMonthlyNA.Checked = false;
+        }
+
+        private byte[] ExportCrystalStatement(DataSet data)
+        {
+            string reportPath = Server.MapPath("~/Reports/rptKTA_BillingStatement_New.rpt");
+            if (!File.Exists(reportPath))
+                throw new ApplicationException("File rptKTA_BillingStatement_New.rpt tidak ditemukan di folder Reports.");
+
+            Type reportType = Type.GetType(
+                "CrystalDecisions.CrystalReports.Engine.ReportDocument, CrystalDecisions.CrystalReports.Engine", false);
+            if (reportType == null)
+                throw new ApplicationException("SAP Crystal Reports runtime belum terpasang/terdaftar di IIS.");
+
+            Type exportType = Type.GetType(
+                "CrystalDecisions.Shared.ExportFormatType, CrystalDecisions.Shared", false);
+            if (exportType == null)
+                throw new ApplicationException("Assembly CrystalDecisions.Shared tidak ditemukan.");
+
+            object report = Activator.CreateInstance(reportType);
+            try
+            {
+                reportType.GetMethod("Load", new Type[] { typeof(string) }).Invoke(report, new object[] { reportPath });
+                reportType.GetMethod("SetDataSource", new Type[] { typeof(DataSet) }).Invoke(report, new object[] { data });
+                object pdfFormat = Enum.Parse(exportType, "PortableDocFormat");
+                MethodInfo export = reportType.GetMethod("ExportToStream", new Type[] { exportType });
+                if (export == null) throw new ApplicationException("Crystal ExportToStream(PortableDocFormat) tidak tersedia.");
+
+                using (Stream crystalStream = (Stream)export.Invoke(report, new object[] { pdfFormat }))
+                using (MemoryStream output = new MemoryStream())
+                {
+                    crystalStream.CopyTo(output);
+                    return output.ToArray();
+                }
+            }
+            catch (TargetInvocationException ex)
+            {
+                throw new ApplicationException("Crystal report gagal dirender: " +
+                    (ex.InnerException == null ? ex.Message : ex.InnerException.Message), ex);
+            }
+            finally
+            {
+                MethodInfo close = reportType.GetMethod("Close", Type.EmptyTypes);
+                MethodInfo dispose = reportType.GetMethod("Dispose", Type.EmptyTypes);
+                if (close != null) close.Invoke(report, null);
+                if (dispose != null) dispose.Invoke(report, null);
+            }
         }
 
         private static DataTable ReadDelimited(Stream stream, char delimiter)
