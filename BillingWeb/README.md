@@ -27,8 +27,8 @@ session-key names in Web.config.
 
 1. Database/01_Billing_Staging_Validation_Preview.sql
 2. Database/02_usp_KTA_Billing_Post.sql
-3. Database/03_usp_KTA_Billing_DummyStatement.sql
-4. Existing vb6/sp_KTA_rpt_BillingStatement.sql (deploy/update the legacy report procedure first)
+3. Existing vb6/sp_KTA_rpt_BillingStatement.sql (deploy/update this legacy report procedure before the dummy wrapper)
+4. Database/03_usp_KTA_Billing_DummyStatement.sql
 5. Database/04_Verify_Billing_Deployment.sql (read-only object/schema preflight)
 
 The staging layer is BatchID-scoped. KTA_W_BillingMember is mandatory; Card Payment
