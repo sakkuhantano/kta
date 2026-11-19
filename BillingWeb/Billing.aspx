@@ -5,6 +5,7 @@
     <asp:Button ID="btnNew" runat="server" Text="New Batch" CssClass="btn btn-outline-secondary btn-sm" OnClick="btnNew_Click" />
     <asp:Button ID="btnValidate" runat="server" Text="Validate" CssClass="btn btn-outline-primary btn-sm" OnClick="btnValidate_Click" />
     <asp:Button ID="btnPreview" runat="server" Text="Preview" CssClass="btn btn-outline-primary btn-sm" OnClick="btnPreview_Click" />
+    <asp:Button ID="btnDummyStatement" runat="server" Text="Generate Dummy Statement" CssClass="btn btn-outline-dark btn-sm" OnClick="btnDummyStatement_Click" OnClientClick="return confirm('Generate dummy statement? All temporary billing writes will be rolled back.');" />
     <asp:Button ID="btnProcess" runat="server" Text="Process Billing" CssClass="btn btn-primary btn-sm" OnClick="btnProcess_Click"
         OnClientClick="return confirm('Process billing untuk periode aktif? Setelah berhasil billing tidak dapat diproses ulang untuk periode yang sama.');" />
 </div>
@@ -57,6 +58,22 @@
                 <asp:Label ID="lblMonthly" runat="server" CssClass="small d-block mt-1" />
             </div>
         </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header fw-semibold">Dummy Billing Statement</div>
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3"><label class="form-label">Unit From</label><asp:TextBox ID="txtDummyUnitFrom" runat="server" CssClass="form-control form-control-sm" /></div>
+            <div class="col-md-3"><label class="form-label">Unit Thru</label><asp:TextBox ID="txtDummyUnitThru" runat="server" CssClass="form-control form-control-sm" /></div>
+            <div class="col-md-3"><asp:Button ID="btnDummyStatementRun" runat="server" Text="Generate Dummy Statement" CssClass="btn btn-outline-dark btn-sm" OnClick="btnDummyStatement_Click" OnClientClick="return confirm('Generate dummy statement? Temporary billing writes will be rolled back.');" /></div>
+        </div>
+        <asp:Label ID="lblDummyStatement" runat="server" CssClass="small d-block mt-2" />
+        <div class="table-responsive mt-2">
+            <asp:GridView ID="gvDummyStatement" runat="server" CssClass="table table-sm table-bordered table-hover mb-0" AutoGenerateColumns="true" EmptyDataText="Belum ada dummy statement." />
+        </div>
+        <div class="small text-muted mt-2">Dummy menggunakan nomor sementara berawalan D, tidak mengonsumsi nomor KBI, dan seluruh perubahan database di-rollback. Data yang ditampilkan mengikuti dataset SP billing statement legacy.</div>
     </div>
 </div>
 
