@@ -58,7 +58,7 @@ BEGIN
              AND LocationID=@LocationID AND Period=CONVERT(varchar(6),@PeriodCAR,112))
       RAISERROR('Billing period has already been processed.',16,1);
 
-   -- The number is generated only during posting, inside this transaction.
+   -- PPN follows the legacy VB6 constant: Private Const PPN As Double = (11 / 100).\n   -- Keep this hardcoded for now; move to configuration only when the legacy source is intentionally changed.\n   SET @PPN = 0.11;\n\n   -- The number is generated only during posting, inside this transaction.
    -- Required convention: dbo.sp_GetGenerateAutoNumID 'arkta', KBI+Company+Location.
    -- This block is intentionally isolated so preview never consumes a number.
    DECLARE @Units TABLE(
