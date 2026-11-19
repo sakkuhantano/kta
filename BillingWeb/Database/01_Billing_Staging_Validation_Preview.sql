@@ -96,9 +96,15 @@ BEGIN
         @MonthlyNA=MonthlyUnavailableConfirmed
  FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID;
  IF @Period IS NULL RAISERROR('Unknown billing BatchID.',16,1);
+ DECLARE @PeriodCAR smalldatetime,@CompanyID varchar(10),@LocationID varchar(3);
+ SELECT @CompanyID=CompanyID,@LocationID=LocationID FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID;
+ SELECT @PeriodCAR=ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KCAR'+@CompanyID+@LocationID;
+ SET @Message='';
+ IF @PeriodCAR IS NULL SET @Message=@Message+'Active KCAR period was not found. ';
+ IF @PeriodCAR IS NOT NULL AND CONVERT(varchar(6),@Period,112)<>CONVERT(varchar(6),@PeriodCAR,112)
+   SET @Message=@Message+'Active KAR and KCAR periods are not aligned for processing. ';
  SET @MonthStart=DATEADD(month,DATEDIFF(month,0,@Period),0);
  SET @MonthEnd=DATEADD(month,1,@MonthStart);
- SET @Message='';
  IF @Member=0 SET @Message=@Message+'Billing_member file is required. ';
  IF @Card=0 AND @CardNA=0 SET @Message=@Message+'Confirm Card Payment Statistics is unavailable, or upload it. ';
  IF @Monthly=0 AND @MonthlyNA=0 SET @Message=@Message+'Confirm Billing Report Monthly is unavailable, or upload it. ';
