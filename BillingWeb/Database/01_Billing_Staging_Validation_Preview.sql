@@ -75,6 +75,7 @@ BEGIN
  SELECT @ActivePeriod=ActivePeriod FROM dbo.M_Active_Period
  WHERE AutoNum='KAR'+@CompanyID+@LocationID;
  IF @ActivePeriod IS NULL RAISERROR('Active billing period KAR was not found.',16,1);
+ RETURN;
  SET @BatchID=NEWID();
  INSERT dbo.KTA_W_BillingBatch(BatchID,CompanyID,LocationID,ActivePeriod,UpdateUser)
  VALUES(@BatchID,@CompanyID,@LocationID,@ActivePeriod,@UpdateUser);
@@ -96,6 +97,7 @@ BEGIN
         @MonthlyNA=MonthlyUnavailableConfirmed
  FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID;
  IF @Period IS NULL RAISERROR('Unknown billing BatchID.',16,1);
+ RETURN;
  DECLARE @PeriodCAR smalldatetime,@CompanyID varchar(10),@LocationID varchar(3);
  SELECT @CompanyID=CompanyID,@LocationID=LocationID FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID;
  SELECT @PeriodCAR=ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KCAR'+@CompanyID+@LocationID;
