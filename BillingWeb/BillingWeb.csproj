@@ -26,8 +26,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Billing.aspx" />
-    <Content Include="..\\vb6\\rptKTA_BillingStatement_New.rpt">
-      <Link>Reports\\rptKTA_BillingStatement_New.rpt</Link>
+    <Content Include="Reports\\rptKTA_BillingStatement_New.rpt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="MasterPages\Site_BS_5.Master" />
