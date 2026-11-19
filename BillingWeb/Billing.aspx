@@ -2,7 +2,7 @@
 
 <asp:Content ID="MainContent" ContentPlaceHolderID="MainContent" runat="server">
 <div class="toolbar d-flex flex-wrap align-items-center gap-2">
-    <asp:Button ID="btnNew" runat="server" Text="New Batch" CssClass="btn btn-outline-secondary btn-sm" OnClick="btnNew_Click" />
+    <asp:Button ID="btnNew" runat="server" Text="New Upload Session" CssClass="btn btn-outline-secondary btn-sm" OnClick="btnNew_Click" />
     <asp:Button ID="btnValidate" runat="server" Text="Validate" CssClass="btn btn-outline-primary btn-sm" OnClick="btnValidate_Click" />
     <asp:Button ID="btnPreview" runat="server" Text="Preview" CssClass="btn btn-outline-primary btn-sm" OnClick="btnPreview_Click" />
     <asp:Button ID="btnProcess" runat="server" Text="Process Billing" CssClass="btn btn-primary btn-sm" OnClick="btnProcess_Click"
@@ -15,7 +15,7 @@
             <div class="col-md-3"><label class="form-label">Company</label><asp:TextBox ID="txtCompany" runat="server" CssClass="form-control form-control-sm" ReadOnly="true" /></div>
             <div class="col-md-2"><label class="form-label">Location</label><asp:TextBox ID="txtLocation" runat="server" CssClass="form-control form-control-sm" ReadOnly="true" /></div>
             <div class="col-md-3"><label class="form-label">Active KAR Period</label><asp:TextBox ID="txtActivePeriod" runat="server" CssClass="form-control form-control-sm" ReadOnly="true" /></div>
-            <div class="col-md-4"><label class="form-label">Batch ID</label><asp:TextBox ID="txtBatchID" runat="server" CssClass="form-control form-control-sm" ReadOnly="true" /></div>
+            <div class="col-md-4"><label class="form-label">Upload Session</label><asp:TextBox ID="txtBatchID" runat="server" CssClass="form-control form-control-sm" ReadOnly="true" /></div>
         </div>
         <div class="mt-3 status-box"><asp:Label ID="lblStatus" runat="server" CssClass="alert alert-info d-block mb-0" /></div>
     </div>
@@ -98,6 +98,6 @@
 </div>
 
 <div class="alert alert-secondary small mb-0">
-    Preview control total hanya membaca staging. Dummy Statement menjalankan kalkulasi dalam transaksi yang di-rollback, memakai nomor sementara D dan tidak mengonsumsi nomor KBI. PDF memakai rptKTA_BillingStatement_New.rpt jika SAP Crystal Reports runtime tersedia di IIS.
+    Preview control total dihitung langsung dari TVP. Upload source disimpan sementara di server Session sampai proses selesai. Dummy Statement menjalankan kalkulasi dalam transaksi yang di-rollback, memakai nomor sementara D dan tidak mengonsumsi nomor KBI. PDF memakai rptKTA_BillingStatement_New.rpt jika SAP Crystal Reports runtime tersedia di IIS.
 </div>
 </asp:Content>
