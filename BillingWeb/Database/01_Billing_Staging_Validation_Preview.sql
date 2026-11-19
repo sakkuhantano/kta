@@ -74,8 +74,11 @@ BEGIN
  SET NOCOUNT ON;
  SELECT @ActivePeriod=ActivePeriod FROM dbo.M_Active_Period
  WHERE AutoNum='KAR'+@CompanyID+@LocationID;
- IF @ActivePeriod IS NULL RAISERROR('Active billing period KAR was not found.',16,1);
- RETURN;
+ IF @ActivePeriod IS NULL
+ BEGIN
+  RAISERROR('Active billing period KAR was not found.',16,1);
+  RETURN;
+ END
  SET @BatchID=NEWID();
  INSERT dbo.KTA_W_BillingBatch(BatchID,CompanyID,LocationID,ActivePeriod,UpdateUser)
  VALUES(@BatchID,@CompanyID,@LocationID,@ActivePeriod,@UpdateUser);
@@ -96,8 +99,11 @@ BEGIN
         @Monthly=MonthlyUploaded,@CardNA=CardUnavailableConfirmed,
         @MonthlyNA=MonthlyUnavailableConfirmed
  FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID;
- IF @Period IS NULL RAISERROR('Unknown billing BatchID.',16,1);
- RETURN;
+ IF @Period IS NULL
+ BEGIN
+  RAISERROR('Unknown billing BatchID.',16,1);
+  RETURN;
+ END
  DECLARE @PeriodCAR smalldatetime,@CompanyID varchar(10),@LocationID varchar(3);
  SELECT @CompanyID=CompanyID,@LocationID=LocationID FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID;
  SELECT @PeriodCAR=ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KCAR'+@CompanyID+@LocationID;
@@ -142,7 +148,10 @@ AS
 BEGIN
  SET NOCOUNT ON;
  IF NOT EXISTS(SELECT 1 FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID AND ValidationStatus=1)
+ BEGIN
   RAISERROR('Batch must pass validation before preview.',16,1);
+  RETURN;
+ END
  DECLARE @Card bit,@Monthly bit;
  SELECT @Card=CardUploaded,@Monthly=MonthlyUploaded FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID;
 
