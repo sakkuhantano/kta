@@ -246,8 +246,15 @@ namespace BillingWeb
             if (!fuMonthly.HasFile) { ShowError("Billing Report Monthly belum dipilih."); return; }
             try
             {
-                DataTable src = ReadDelimited(fuMonthly.PostedFile.InputStream, '\t');
-                if (!HasHeader(src, "driver account")) src = ReadDelimited(fuMonthly.PostedFile.InputStream, ',');
+                byte[] monthlyBytes = ReadAllBytes(fuMonthly.PostedFile.InputStream);
+                DataTable src;
+                using (MemoryStream ms = new MemoryStream(monthlyBytes))
+                    src = ReadDelimited(ms, '\t');
+                if (!HasHeader(src, "driver account"))
+                {
+                    using (MemoryStream ms = new MemoryStream(monthlyBytes))
+                        src = ReadDelimited(ms, ',');
+                }
                 RequireHeaders(src, "driver account", "subtotal amount", "period");
                 DataTable dt = new DataTable();
                 dt.Columns.Add("BatchID", typeof(Guid));
@@ -464,6 +471,7 @@ namespace BillingWeb
         {
             bool enabled = !completed && BatchID != Guid.Empty && CanPreviewSafe();
             btnProcess.Enabled = enabled;
+            btnDummyStatementRun.Enabled = !completed;
             btnPreview.Enabled = !completed;
             btnValidate.Enabled = !completed;
             btnUploadMember.Enabled = !completed;
