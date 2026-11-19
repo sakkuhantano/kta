@@ -113,6 +113,19 @@ BEGIN
  IF @PeriodKAR IS NOT NULL AND CONVERT(varchar(6),@PeriodKAR,112)<>CONVERT(varchar(6),@Period,112)
    SET @Message=@Message+'Batch period is no longer the current active KAR period. ';
  IF @PeriodCAR IS NULL SET @Message=@Message+'Active KCAR period was not found. ';
+ IF NOT EXISTS(SELECT 1 FROM dbo.KTA_M_Penalty WHERE CompanyID=@CompanyID AND LocationID=@LocationID)
+   SET @Message=@Message+'KTA_M_Penalty configuration was not found. ';
+ IF EXISTS(SELECT 1 FROM dbo.KTA_M_Penalty WHERE CompanyID=@CompanyID AND LocationID=@LocationID
+           AND (BillDate IS NULL OR BillDate=0))
+   SET @Message=@Message+'KTA_M_Penalty.BillDate is not configured. ';
+ IF @PeriodCAR IS NOT NULL AND NOT EXISTS(
+      SELECT 1 FROM dbo.M_Rate WHERE CONVERT(varchar(6),[Date],112)=CONVERT(varchar(6),@PeriodCAR,112))
+   SET @Message=@Message+'M_Rate for active CAR period was not found. ';
+ IF NOT EXISTS(SELECT 1 FROM dbo.KTA_T_BillingPhone
+               WHERE CONVERT(varchar(8),BillDate,112)=
+                     CONVERT(varchar(8),DATEADD(day,-1,DATEADD(month,-1,DATEADD(day,1,@Period))),112))
+   SET @Message=@Message+'Telephone billing source for the required prior period is missing. ';
+
  IF @PeriodCAR IS NOT NULL AND CONVERT(varchar(6),@Period,112)<>CONVERT(varchar(6),@PeriodCAR,112)
    SET @Message=@Message+'Active KAR and KCAR periods are not aligned for processing. ';
  SET @MonthStart=DATEADD(month,DATEDIFF(month,0,@Period),0);
