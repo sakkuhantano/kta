@@ -176,6 +176,7 @@ namespace BillingWeb
                     dt.Rows.Add(n);
                 }
                 ReplaceStage("dbo.KTA_W_BillingMember", dt);
+                SetUploaded("Member");
                 lblMember.Text = row + " rows uploaded.";
                 lblMember.CssClass = "text-success small d-block mt-1";
                 ValidateAndRefresh();
@@ -215,6 +216,7 @@ namespace BillingWeb
                     dt.Rows.Add(n);
                 }
                 ReplaceStage("dbo.KTA_W_BillingMonthly", dt);
+                SetUploaded("Monthly");
                 chkMonthlyNA.Checked = false;
                 SetOptionalUnavailable("Monthly", false);
                 lblMonthly.Text = row + " rows uploaded.";
@@ -274,6 +276,7 @@ namespace BillingWeb
                     }
                 }
                 ReplaceStage("dbo.KTA_W_BillingCard", dt);
+                SetUploaded("Card");
                 chkCardNA.Checked = false;
                 SetOptionalUnavailable("Card", false);
                 lblCard.Text = dt.Rows.Count + " rows uploaded.";
@@ -300,6 +303,21 @@ namespace BillingWeb
                     foreach (DataColumn c in dt.Columns) bc.ColumnMappings.Add(c.ColumnName, c.ColumnName);
                     bc.WriteToServer(dt);
                 }
+            }
+        }
+
+        private void SetUploaded(string source)
+        {
+            string field = source == "Member" ? "MemberUploaded" : (source == "Card" ? "CardUploaded" : "MonthlyUploaded");
+            string naField = source == "Card" ? "CardUnavailableConfirmed" : (source == "Monthly" ? "MonthlyUnavailableConfirmed" : "");
+            string sql = "UPDATE dbo.KTA_W_BillingBatch SET " + field + "=1";
+            if (!String.IsNullOrWhiteSpace(naField)) sql += ", " + naField + "=0";
+            sql += " WHERE BatchID=@BatchID";
+            using (SqlConnection cn = new SqlConnection(ConnectionString))
+            using (SqlCommand cmd = new SqlCommand(sql, cn))
+            {
+                cmd.Parameters.Add("@BatchID", SqlDbType.UniqueIdentifier).Value = BatchID;
+                cn.Open(); cmd.ExecuteNonQuery();
             }
         }
 
