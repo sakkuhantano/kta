@@ -95,6 +95,8 @@ BEGIN
   SET @Message=@Message+'Billing Report Monthly contains Driver Account values that are not eligible unit numbers. ';
  IF NOT EXISTS(SELECT 1 FROM dbo.KTA_M_Penalty WHERE CompanyID=@CompanyID AND LocationID=@LocationID)
   SET @Message=@Message+'KTA_M_Penalty configuration was not found. ';
+ IF EXISTS(SELECT 1 FROM dbo.KTA_M_Penalty WHERE CompanyID=@CompanyID AND LocationID=@LocationID AND (BillDate IS NULL OR BillDate=0))
+  SET @Message=@Message+'KTA_M_Penalty.BillDate is not configured. ';
  IF NOT EXISTS(SELECT 1 FROM dbo.M_Rate WHERE @PeriodCAR IS NOT NULL AND CONVERT(varchar(6),[Date],112)=CONVERT(varchar(6),@PeriodCAR,112))
   SET @Message=@Message+'M_Rate for active CAR period was not found. ';
  IF NOT EXISTS(SELECT 1 FROM dbo.KTA_T_BillingPhone WHERE @Period IS NOT NULL AND CONVERT(varchar(8),BillDate,112)=
