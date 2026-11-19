@@ -22,9 +22,9 @@ CREATE PROCEDURE dbo.usp_KTA_Billing_DummyStatement
  @GroupIDFrom varchar(10)='',
  @GroupIDThru varchar(10)='',
  @ByWhat varchar(1)='1',
- @BillingMember dbo.Type_KTA_BillingMember READONLY,
- @BillingCard dbo.Type_KTA_BillingCard READONLY,
- @BillingMonthly dbo.Type_KTA_BillingMonthly READONLY,
+ @BillingMember dbo.Type_Tbl_C4 READONLY,
+ @BillingCard dbo.Type_Tbl_C7 READONLY,
+ @BillingMonthly dbo.Type_Tbl_C7 READONLY,
  @CardUnavailableConfirmed bit=0,
  @MonthlyUnavailableConfirmed bit=0
 AS
