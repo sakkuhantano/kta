@@ -104,10 +104,14 @@ BEGIN
   RAISERROR('Unknown billing BatchID.',16,1);
   RETURN;
  END
- DECLARE @PeriodCAR smalldatetime,@CompanyID varchar(10),@LocationID varchar(3);
+ DECLARE @PeriodCAR smalldatetime,@PeriodKAR smalldatetime,@CompanyID varchar(10),@LocationID varchar(3);
  SELECT @CompanyID=CompanyID,@LocationID=LocationID FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID;
+ SELECT @PeriodKAR=ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KAR'+@CompanyID+@LocationID;
  SELECT @PeriodCAR=ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KCAR'+@CompanyID+@LocationID;
  SET @Message='';
+ IF @PeriodKAR IS NULL SET @Message=@Message+'Active KAR period was not found. ';
+ IF @PeriodKAR IS NOT NULL AND CONVERT(varchar(6),@PeriodKAR,112)<>CONVERT(varchar(6),@Period,112)
+   SET @Message=@Message+'Batch period is no longer the current active KAR period. ';
  IF @PeriodCAR IS NULL SET @Message=@Message+'Active KCAR period was not found. ';
  IF @PeriodCAR IS NOT NULL AND CONVERT(varchar(6),@Period,112)<>CONVERT(varchar(6),@PeriodCAR,112)
    SET @Message=@Message+'Active KAR and KCAR periods are not aligned for processing. ';
