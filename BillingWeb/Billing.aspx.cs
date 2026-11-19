@@ -220,8 +220,6 @@ namespace BillingWeb
                     cmd.CommandType = CommandType.StoredProcedure;
                     cmd.CommandTimeout = 0;
                     AddTvpParameters(cmd);
-                    cmd.Parameters.Add("@CompanyID", SqlDbType.VarChar, 10).Value = txtCompany.Text.Trim();
-                    cmd.Parameters.Add("@LocationID", SqlDbType.VarChar, 3).Value = txtLocation.Text.Trim();
                     cmd.Parameters.Add("@UpdateUser", SqlDbType.VarChar, 10).Value = SafeUser();
                     cn.Open();
                     cmd.ExecuteNonQuery();
@@ -325,7 +323,6 @@ namespace BillingWeb
             try
             {
                 DataTable dt = new DataTable();
-                dt.Columns.Add("BatchID", typeof(Guid));
                 dt.Columns.Add("RowNo", typeof(int));
                 dt.Columns.Add("ChargingCardName", typeof(string));
                 dt.Columns.Add("ChargingCardNo", typeof(string));
