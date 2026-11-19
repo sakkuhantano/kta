@@ -295,7 +295,7 @@ namespace BillingWeb
                 {
                     if (IsBlankRow(r)) continue;
                     DateTime from, thru;
-                    ParseRange(Text(r, "period"), out from, out thru);
+                    ParseRangeFromRow(r, out from, out thru);
                     row++;
                     DataRow n = dt.NewRow();
                     n["BatchID"] = BatchID; n["RowNo"] = row;
@@ -578,7 +578,17 @@ namespace BillingWeb
                 if (header == null) throw new ApplicationException("File kosong.");
                 List<string> headers = ParseCsvLine(header, delimiter);
                 DataTable dt = new DataTable();
-                foreach (string h in headers) dt.Columns.Add(Normalize(h));
+                int headerIndex = 0;
+                foreach (string h in headers)
+                {
+                    string columnName = Normalize(h);
+                    if (String.IsNullOrWhiteSpace(columnName)) columnName = "__column" + headerIndex;
+                    string uniqueName = columnName;
+                    int suffix = 1;
+                    while (dt.Columns.Contains(uniqueName)) uniqueName = columnName + "_" + suffix++;
+                    dt.Columns.Add(uniqueName);
+                    headerIndex++;
+                }
                 string line;
                 while ((line = sr.ReadLine()) != null)
                 {
@@ -673,6 +683,32 @@ namespace BillingWeb
         {
             if (String.IsNullOrWhiteSpace(value)) return 0;
             return ParseMoney(value);
+        }
+
+        private static void ParseRangeFromRow(DataRow row, out DateTime from, out DateTime thru)
+        {
+            if (row.Table.Columns.Contains("period"))
+            {
+                try
+                {
+                    ParseRange(Convert.ToString(row["period"]), out from, out thru);
+                    return;
+                }
+                catch { }
+            }
+
+            foreach (DataColumn column in row.Table.Columns)
+            {
+                if (String.Equals(column.ColumnName, "period", StringComparison.OrdinalIgnoreCase)) continue;
+                try
+                {
+                    ParseRange(Convert.ToString(row[column]), out from, out thru);
+                    return;
+                }
+                catch { }
+            }
+            throw new ApplicationException("Kolom periode From-Thru tidak ditemukan pada baris: " +
+                String.Join(" | ", row.ItemArray.Select(x => Convert.ToString(x)).ToArray()));
         }
 
         private static void ParseRange(string value, out DateTime from, out DateTime thru)
