@@ -72,7 +72,7 @@
         <div class="table-responsive mt-2">
             <asp:GridView ID="gvDummyStatement" runat="server" CssClass="table table-sm table-bordered table-hover mb-0" AutoGenerateColumns="true" EmptyDataText="Belum ada dummy statement." />
         </div>
-        <div class="small text-muted mt-2">Dummy menggunakan nomor sementara berawalan D, tidak mengonsumsi nomor KBI, dan seluruh perubahan database di-rollback. Data yang ditampilkan mengikuti dataset SP billing statement legacy.</div>
+        <div class="small text-muted mt-2">Dummy memakai nomor sementara D, tidak mengonsumsi nomor KBI, dan seluruh perubahan database di-rollback. PDF menggunakan file Crystal .rpt jika runtime tersedia; jika tidak, dataset report ditampilkan di bawah. Mengikuti filter legacy SendEmail='Y'.</div>
     </div>
 </div>
 
