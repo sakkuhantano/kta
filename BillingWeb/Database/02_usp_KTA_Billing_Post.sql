@@ -112,15 +112,16 @@ BEGIN
    -- The number is generated only during posting, inside this transaction.
    -- Required convention: dbo.sp_GetGenerateAutoNumID 'arkta', KBI+Company+Location.
    -- This block is intentionally isolated so preview never consumes a number.
-   DECLARE @Units TABLE(
-      RowID int IDENTITY(1,1) PRIMARY KEY,
-      UnitNo varchar(5),OwnerID varchar(10),CurrencyID varchar(3),
-      Area money,MaintenanceFee money,SinkingFund money,
-      SendHardCopy varchar(1),HandOverDate smalldatetime,
-      Previous money,Payment money
+   CREATE TABLE #Units(
+      RowID int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+      UnitNo varchar(5) NOT NULL,OwnerID varchar(10) NOT NULL,CurrencyID varchar(3) NOT NULL,
+      Area money NOT NULL,MaintenanceFee money NOT NULL,SinkingFund money NOT NULL,
+      SendHardCopy varchar(1) NULL,HandOverDate smalldatetime NULL,
+      Previous money NOT NULL,Payment money NOT NULL
    );
+   CREATE UNIQUE NONCLUSTERED INDEX IX_Units_UnitNo ON #Units(UnitNo);
 
-   INSERT @Units(UnitNo,OwnerID,CurrencyID,Area,MaintenanceFee,SinkingFund,SendHardCopy,
+   INSERT #Units(UnitNo,OwnerID,CurrencyID,Area,MaintenanceFee,SinkingFund,SendHardCopy,
                  HandOverDate,Previous,Payment)
    SELECT u.UnitNo,u.OwnerID,r.CurrencyID,r.Area,r.MaintenanceFee,r.SinkingFund,
           u.SendHardCopy,u.HandOverDate,
@@ -184,7 +185,7 @@ BEGIN
          ON x.CompanyID=y.CompanyID AND x.LocationID=y.LocationID AND x.OwnerID=y.OwnerID
    ) ON y.CompanyID=h.CompanyID AND y.LocationID=h.LocationID AND y.UnitNo=h.UnitNo
    INNER JOIN dbo.KTA_M_Penalty z1 ON z1.CompanyID=h.CompanyID AND z1.LocationID=h.LocationID
-   INNER JOIN @Units eligible ON eligible.UnitNo=h.UnitNo
+   INNER JOIN #Units eligible ON eligible.UnitNo=h.UnitNo
    LEFT JOIN dbo.KTA_T_D_Outstanding dd
      INNER JOIN dbo.KTA_T_H_Outstanding hh
        ON dd.KeyHD=hh.KeyHD AND dd.RecordType='1' AND dd.Amount<0
@@ -217,7 +218,7 @@ BEGIN
    CREATE CLUSTERED INDEX IX_LPC_Unit_KeyHD ON #LPC(UnitNo,KeyHD,RecordType,RKDate);
 
    DECLARE @RowID int,@MaxRowID int;
-   SELECT @RowID=1,@MaxRowID=COUNT(*) FROM @Units;
+   SELECT @RowID=1,@MaxRowID=COUNT(*) FROM #Units;
 
    WHILE @RowID<=@MaxRowID
    BEGIN
@@ -229,7 +230,7 @@ BEGIN
       SELECT @UnitNo=UnitNo,@OwnerID=OwnerID,@CurrencyID=CurrencyID,@Area=Area,
              @MFee=MaintenanceFee,@SFund=SinkingFund,@SendHardCopy=SendHardCopy,
              @HandOverDate=HandOverDate,@Previous=Previous,@Payment=Payment
-      FROM @Units WHERE RowID=@RowID;
+      FROM #Units WHERE RowID=@RowID;
 
       IF @Dummy=1
       BEGIN
@@ -483,6 +484,7 @@ BEGIN
    END
 
    DROP TABLE #LPC;
+   DROP TABLE #Units;
 
    /* Outstanding + Sales Journal: exact VB6 grouping boundaries. */
    ;WITH BI AS
