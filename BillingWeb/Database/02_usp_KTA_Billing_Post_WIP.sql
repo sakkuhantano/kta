@@ -58,7 +58,11 @@ BEGIN
              AND LocationID=@LocationID AND Period=CONVERT(varchar(6),@PeriodCAR,112))
       RAISERROR('Billing period has already been processed.',16,1);
 
-   -- PPN follows the legacy VB6 constant: Private Const PPN As Double = (11 / 100).\n   -- Keep this hardcoded for now; move to configuration only when the legacy source is intentionally changed.\n   SET @PPN = 0.11;\n\n   -- The number is generated only during posting, inside this transaction.
+   -- PPN follows the legacy VB6 constant: Private Const PPN As Double = (11 / 100).
+   -- Keep this hardcoded for now; move to configuration only when the legacy source is intentionally changed.
+   SET @PPN = 0.11;
+
+   -- The number is generated only during posting, inside this transaction.
    -- Required convention: dbo.sp_GetGenerateAutoNumID 'arkta', KBI+Company+Location.
    -- This block is intentionally isolated so preview never consumes a number.
    DECLARE @Units TABLE(
@@ -263,7 +267,7 @@ BEGIN
               @LPCOuts1 money=0,@LPCIncome1 varchar(3)='',@LPCRKDate1 smalldatetime,
               @LPCPeriod1 smalldatetime;
 
-      SET @LPCPeriod1=CASE WHEN MONTH(@Period)=3 THEN DATEFROMPARTS(YEAR(@Period),MONTH(@Period),2) ELSE @PrevPeriod END;
+      SET @LPCPeriod1=CASE WHEN MONTH(@Period)=3 THEN CONVERT(smalldatetime,CONVERT(varchar(4),YEAR(@Period))+'03-02') ELSE @PrevPeriod END;
 
       DECLARE lpc_cur CURSOR LOCAL FAST_FORWARD FOR
        SELECT KeyHD,DocumentNo,DocumentDate,DueDate,IncomeCode,CurrencyID,UnitNo,OwnerID,
