@@ -113,7 +113,7 @@ BEGIN
    -- Required convention: dbo.sp_GetGenerateAutoNumID 'arkta', KBI+Company+Location.
    -- This block is intentionally isolated so preview never consumes a number.
    CREATE TABLE #Units(
-      RowID int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+      RowID int NOT NULL PRIMARY KEY,
       UnitNo varchar(5) NOT NULL,OwnerID varchar(10) NOT NULL,CurrencyID varchar(3) NOT NULL,
       Area money NOT NULL,MaintenanceFee money NOT NULL,SinkingFund money NOT NULL,
       SendHardCopy varchar(1) NULL,HandOverDate smalldatetime NULL,
@@ -121,9 +121,9 @@ BEGIN
    );
    CREATE UNIQUE NONCLUSTERED INDEX IX_Units_UnitNo ON #Units(UnitNo);
 
-   INSERT #Units(UnitNo,OwnerID,CurrencyID,Area,MaintenanceFee,SinkingFund,SendHardCopy,
+   INSERT #Units(RowID,UnitNo,OwnerID,CurrencyID,Area,MaintenanceFee,SinkingFund,SendHardCopy,
                  HandOverDate,Previous,Payment)
-   SELECT u.UnitNo,u.OwnerID,r.CurrencyID,r.Area,r.MaintenanceFee,r.SinkingFund,
+   SELECT ROW_NUMBER() OVER(ORDER BY u.UnitNo),u.UnitNo,u.OwnerID,r.CurrencyID,r.Area,r.MaintenanceFee,r.SinkingFund,
           u.SendHardCopy,u.HandOverDate,
           ISNULL(pb.NewBalance,0),ISNULL(p.Payment,0)
    FROM dbo.KTA_M_Unit u
