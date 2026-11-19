@@ -5,7 +5,6 @@
     <asp:Button ID="btnNew" runat="server" Text="New Batch" CssClass="btn btn-outline-secondary btn-sm" OnClick="btnNew_Click" />
     <asp:Button ID="btnValidate" runat="server" Text="Validate" CssClass="btn btn-outline-primary btn-sm" OnClick="btnValidate_Click" />
     <asp:Button ID="btnPreview" runat="server" Text="Preview" CssClass="btn btn-outline-primary btn-sm" OnClick="btnPreview_Click" />
-    <asp:Button ID="btnDummyStatement" runat="server" Text="Generate Dummy Statement" CssClass="btn btn-outline-dark btn-sm" OnClick="btnDummyStatement_Click" OnClientClick="return confirm('Generate dummy statement? All temporary billing writes will be rolled back.');" />
     <asp:Button ID="btnProcess" runat="server" Text="Process Billing" CssClass="btn btn-primary btn-sm" OnClick="btnProcess_Click"
         OnClientClick="return confirm('Process billing untuk periode aktif? Setelah berhasil billing tidak dapat diproses ulang untuk periode yang sama.');" />
 </div>
