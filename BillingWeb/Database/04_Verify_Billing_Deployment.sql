@@ -59,9 +59,9 @@ BEGIN
  RETURN;
 END
 
-IF TYPE_ID('dbo.Type_KTA_BillingMember') IS NULL
- OR TYPE_ID('dbo.Type_KTA_BillingCard') IS NULL
- OR TYPE_ID('dbo.Type_KTA_BillingMonthly') IS NULL
+IF TYPE_ID('dbo.Type_Tbl_C4') IS NULL
+ OR TYPE_ID('dbo.Type_Tbl_C7') IS NULL
+ OR TYPE_ID('dbo.Type_Tbl_C7') IS NULL
  OR OBJECT_ID('dbo.usp_KTA_Billing_Validate','P') IS NULL
  OR OBJECT_ID('dbo.usp_KTA_Billing_Preview','P') IS NULL
  OR OBJECT_ID('dbo.usp_KTA_Billing_Post','P') IS NULL
