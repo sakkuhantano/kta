@@ -59,17 +59,24 @@ BEGIN
  RETURN;
 END
 
-IF OBJECT_ID('dbo.KTA_W_BillingBatch','U') IS NULL
- OR OBJECT_ID('dbo.KTA_W_BillingMember','U') IS NULL
- OR OBJECT_ID('dbo.KTA_W_BillingCard','U') IS NULL
- OR OBJECT_ID('dbo.KTA_W_BillingMonthly','U') IS NULL
- OR OBJECT_ID('dbo.usp_KTA_Billing_CreateBatch','P') IS NULL
- OR OBJECT_ID('dbo.usp_KTA_Billing_ValidateBatch','P') IS NULL
+IF TYPE_ID('dbo.Type_KTA_BillingMember') IS NULL
+ OR TYPE_ID('dbo.Type_KTA_BillingCard') IS NULL
+ OR TYPE_ID('dbo.Type_KTA_BillingMonthly') IS NULL
+ OR OBJECT_ID('dbo.usp_KTA_Billing_Validate','P') IS NULL
  OR OBJECT_ID('dbo.usp_KTA_Billing_Preview','P') IS NULL
  OR OBJECT_ID('dbo.usp_KTA_Billing_Post','P') IS NULL
  OR OBJECT_ID('dbo.usp_KTA_Billing_DummyStatement','P') IS NULL
 BEGIN
- RAISERROR('Web Billing staging/procedure deployment is incomplete. Run scripts 01, 02, and 03.',16,1);
+ RAISERROR('Web Billing TVP/procedure deployment is incomplete. Run scripts 01, 02, and 03.',16,1);
+ RETURN;
+END
+
+IF OBJECT_ID('dbo.KTA_W_BillingBatch','U') IS NOT NULL
+ OR OBJECT_ID('dbo.KTA_W_BillingMember','U') IS NOT NULL
+ OR OBJECT_ID('dbo.KTA_W_BillingCard','U') IS NOT NULL
+ OR OBJECT_ID('dbo.KTA_W_BillingMonthly','U') IS NOT NULL
+BEGIN
+ RAISERROR('Legacy physical billing staging tables still exist. Review/drop them after confirming they are no longer needed.',16,1);
  RETURN;
 END
 
