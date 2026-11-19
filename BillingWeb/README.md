@@ -8,20 +8,31 @@ copied into the actual KTA solution later.
 
 Billing.aspx provides the complete upload/validation/preview/process workflow:
 
-1. Create a BatchID from the authoritative KAR active period.
+1. Start a new upload session; its ID exists only in ASP.NET Session/ViewState and is never stored in SQL.
 2. Upload mandatory Billing_member.csv.
 3. Upload optional Card Payment Statistics.xlsx.
 4. Upload optional Billing Report Monthly.csv/.tsv.
 5. If an optional source is unavailable, explicitly confirm that source is unavailable.
 6. Run validation against the active KAR period.
 7. Preview source control totals without creating billing numbers or posting billing.
-8. Process only after validation succeeds.
-9. After successful posting, the batch is treated as completed and the same CAR period
-   cannot be processed again.
+8. Process only after validation succeeds; posting validates the same TVPs again inside SQL.
+9. After successful posting, the same CAR period cannot be processed again.
 
 The production copy should map ResolveContext() to the real KTA session conventions
 for CompanyID, LocationID, and UserID. The standalone sample uses configurable
 session-key names in Web.config.
+
+## TVP architecture
+
+There are no persistent billing staging or batch tables. The three source files are parsed into in-memory .NET DataTables held in server-side ASP.NET Session for the lifetime of the upload session. Each Validate, Preview, Process, and Dummy Statement call sends the rows to SQL Server using these table-valued parameters:
+
+- `dbo.Type_KTA_BillingMember`
+- `dbo.Type_KTA_BillingCard`
+- `dbo.Type_KTA_BillingMonthly`
+
+SQL validates the TVPs against the active KAR period and existing KTA master/transaction data. Preview reads the TVPs without posting. Final posting repeats validation and copies TVP rows into connection-local `#temp` tables for the legacy calculation flow; those temporary tables disappear automatically. Only existing KTA billing, outstanding, sales-journal, and process tables receive permanent transaction data.
+
+Optional-source unavailable confirmations are held in ASP.NET Session and passed as bit parameters. If an uploaded source is invalid, validation fails; it is never silently treated as unavailable. Since upload data is session-scoped, users must keep the same web session until Process completes; an expired session requires re-upload.
 
 ## Database deployment order
 
@@ -31,10 +42,7 @@ session-key names in Web.config.
 4. Database/03_usp_KTA_Billing_DummyStatement.sql
 5. Database/04_Verify_Billing_Deployment.sql (read-only object/schema preflight)
 
-The staging layer is BatchID-scoped. KTA_W_BillingMember is mandatory; Card Payment
-Statistics and Billing Report Monthly are independently optional, but missing optional
-sources require explicit confirmation. Uploaded invalid data is never silently treated
-as unavailable.
+Script 01 creates the three TVP types and the Validate/Preview procedures. It also removes the old KTA_W_* staging tables and CreateBatch/ValidateBatch procedures from the previous design. No physical staging tables are needed.
 
 ## Billing period
 
