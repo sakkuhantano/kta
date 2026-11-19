@@ -7,6 +7,20 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
+/* Remove objects from the previous physical-staging design, if it was deployed. */
+IF OBJECT_ID('dbo.usp_KTA_Billing_CreateBatch','P') IS NOT NULL DROP PROCEDURE dbo.usp_KTA_Billing_CreateBatch
+GO
+IF OBJECT_ID('dbo.usp_KTA_Billing_ValidateBatch','P') IS NOT NULL DROP PROCEDURE dbo.usp_KTA_Billing_ValidateBatch
+GO
+IF OBJECT_ID('dbo.KTA_W_BillingMember','U') IS NOT NULL DROP TABLE dbo.KTA_W_BillingMember
+GO
+IF OBJECT_ID('dbo.KTA_W_BillingCard','U') IS NOT NULL DROP TABLE dbo.KTA_W_BillingCard
+GO
+IF OBJECT_ID('dbo.KTA_W_BillingMonthly','U') IS NOT NULL DROP TABLE dbo.KTA_W_BillingMonthly
+GO
+IF OBJECT_ID('dbo.KTA_W_BillingBatch','U') IS NOT NULL DROP TABLE dbo.KTA_W_BillingBatch
+GO
+
 IF TYPE_ID('dbo.Type_KTA_BillingMember') IS NULL
  EXEC('CREATE TYPE dbo.Type_KTA_BillingMember AS TABLE
  (RowNo int NOT NULL, UnitNo varchar(5) NOT NULL, DateTrans smalldatetime NOT NULL,
