@@ -12,9 +12,9 @@ CREATE PROCEDURE dbo.usp_KTA_Billing_Post
  @LocationID varchar(3),
  @UpdateUser varchar(10),
  @Dummy bit = 0,
- @BillingMember dbo.Type_KTA_BillingMember READONLY,
- @BillingCard dbo.Type_KTA_BillingCard READONLY,
- @BillingMonthly dbo.Type_KTA_BillingMonthly READONLY,
+ @BillingMember dbo.Type_Tbl_C4 READONLY,
+ @BillingCard dbo.Type_Tbl_C7 READONLY,
+ @BillingMonthly dbo.Type_Tbl_C7 READONLY,
  @CardUnavailableConfirmed bit=0,
  @MonthlyUnavailableConfirmed bit=0
 AS
@@ -167,12 +167,12 @@ BEGIN
      This is the set-based equivalent of sp_KTA_selectLPC, avoiding 2,700
      separate stored-procedure executions while retaining its filters/order.
    */
-   CREATE TABLE #BillingMember(RowNo int NOT NULL,UnitNo varchar(5) NOT NULL,DateTrans smalldatetime NOT NULL,[Description] varchar(100) NULL,Amount money NOT NULL);
-   INSERT #BillingMember SELECT RowNo,UnitNo,DateTrans,[Description],Amount FROM @BillingMember;
-   CREATE TABLE #BillingCard(RowNo int NOT NULL,ChargingCardName varchar(100) NOT NULL,ChargingCardNo varchar(100) NULL,Currency varchar(3) NULL,TotalPowerCost money NOT NULL,TotalPowerConsumption decimal(18,4) NULL,PeriodFrom smalldatetime NOT NULL,PeriodThru smalldatetime NOT NULL);
-   INSERT #BillingCard SELECT RowNo,ChargingCardName,ChargingCardNo,Currency,TotalPowerCost,TotalPowerConsumption,PeriodFrom,PeriodThru FROM @BillingCard;
-   CREATE TABLE #BillingMonthly(RowNo int NOT NULL,DriverAccount varchar(100) NOT NULL,SubtotalAmount money NOT NULL,SubtotalPowerUsage decimal(18,4) NULL,PeriodFrom smalldatetime NOT NULL,PeriodThru smalldatetime NOT NULL);
-   INSERT #BillingMonthly SELECT RowNo,DriverAccount,SubtotalAmount,SubtotalPowerUsage,PeriodFrom,PeriodThru FROM @BillingMonthly;
+   CREATE TABLE #BillingMember(RowNo int IDENTITY(1,1),UnitNo varchar(5),DateTrans smalldatetime,[Description] varchar(100),Amount money);
+   INSERT #BillingMember(UnitNo,DateTrans,[Description],Amount) SELECT LTRIM(RTRIM(C1)),CONVERT(smalldatetime,C2,120),C3,CONVERT(money,C4) FROM @BillingMember;
+   CREATE TABLE #BillingCard(RowNo int IDENTITY(1,1),ChargingCardName varchar(100),ChargingCardNo varchar(100),Currency varchar(3),TotalPowerCost money,TotalPowerConsumption decimal(18,4),PeriodFrom smalldatetime,PeriodThru smalldatetime);
+   INSERT #BillingCard(ChargingCardName,ChargingCardNo,Currency,TotalPowerCost,TotalPowerConsumption,PeriodFrom,PeriodThru) SELECT LTRIM(RTRIM(C1)),C2,C3,CONVERT(money,C4),CASE WHEN ISNULL(C5,'')='' THEN NULL ELSE CONVERT(decimal(18,4),C5) END,CONVERT(smalldatetime,C6,120),CONVERT(smalldatetime,C7,120) FROM @BillingCard;
+   CREATE TABLE #BillingMonthly(RowNo int IDENTITY(1,1),DriverAccount varchar(100),SubtotalAmount money,SubtotalPowerUsage decimal(18,4),PeriodFrom smalldatetime,PeriodThru smalldatetime);
+   INSERT #BillingMonthly(DriverAccount,SubtotalAmount,SubtotalPowerUsage,PeriodFrom,PeriodThru) SELECT LTRIM(RTRIM(C1)),CONVERT(money,C2),CASE WHEN ISNULL(C3,'')='' THEN NULL ELSE CONVERT(decimal(18,4),C3) END,CONVERT(smalldatetime,C4,120),CONVERT(smalldatetime,C5,120) FROM @BillingMonthly;
 
    DECLARE @LPCPeriodText varchar(6);
    SET @LPCPeriodText=CONVERT(varchar(6),@Period,112);
