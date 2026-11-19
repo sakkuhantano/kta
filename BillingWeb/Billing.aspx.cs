@@ -167,7 +167,7 @@ namespace BillingWeb
                 ds.Tables[0].TableName = "sp_KTA_rpt_BillingStatement";
                 try
                 {
-                    byte[] pdf = ExportCrystalStatement(ds);
+                    byte[] pdf = ExportCrystalStatement(ds, unitFrom, unitThru);
                     Response.Clear();
                     Response.ContentType = "application/pdf";
                     Response.AddHeader("Content-Disposition", "inline; filename=BillingStatement-DUMMY-" +
@@ -523,7 +523,7 @@ namespace BillingWeb
             chkCardNA.Checked = false; chkMonthlyNA.Checked = false;
         }
 
-        private byte[] ExportCrystalStatement(DataSet data)
+        private byte[] ExportCrystalStatement(DataSet data, string unitFrom, string unitThru)
         {
             string reportPath = Server.MapPath("~/Reports/rptKTA_BillingStatement_New.rpt");
             if (!File.Exists(reportPath))
@@ -544,6 +544,21 @@ namespace BillingWeb
             {
                 reportType.GetMethod("Load", new Type[] { typeof(string) }).Invoke(report, new object[] { reportPath });
                 reportType.GetMethod("SetDataSource", new Type[] { typeof(DataSet) }).Invoke(report, new object[] { data });
+
+                // Populate the original stored-procedure parameter fields if they are present in the RPT.
+                MethodInfo setParameter = reportType.GetMethod("SetParameterValue", new Type[] { typeof(string), typeof(object) });
+                if (setParameter != null)
+                {
+                    setParameter.Invoke(report, new object[] { "CompanyID", txtCompany.Text.Trim() });
+                    setParameter.Invoke(report, new object[] { "LocationID", txtLocation.Text.Trim() });
+                    setParameter.Invoke(report, new object[] { "UnitNoFrom", unitFrom });
+                    setParameter.Invoke(report, new object[] { "UnitNoThru", unitThru });
+                    setParameter.Invoke(report, new object[] { "GroupIDFrom", "" });
+                    setParameter.Invoke(report, new object[] { "GroupIDThru", "" });
+                    setParameter.Invoke(report, new object[] { "Period", txtActivePeriod.Text.Replace("-", "") });
+                    setParameter.Invoke(report, new object[] { "ByWhat", "1" });
+                }
+
                 object pdfFormat = Enum.Parse(exportType, "PortableDocFormat");
                 MethodInfo export = reportType.GetMethod("ExportToStream", new Type[] { exportType });
                 if (export == null) throw new ApplicationException("Crystal ExportToStream(PortableDocFormat) tidak tersedia.");
