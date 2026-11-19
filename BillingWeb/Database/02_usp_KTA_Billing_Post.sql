@@ -43,6 +43,9 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID AND ValidationStatus=1)
   RAISERROR('Billing batch has not passed validation.',16,1);
 
+ IF CONVERT(varchar(6),@Period,112)<>CONVERT(varchar(6),@PeriodCAR,112)
+  RAISERROR('Process can be done after EOM: active KAR and KCAR periods are not the same.',16,1);
+
  DECLARE @BillDateDay tinyint;
  SELECT @BillDateDay=BillDate FROM dbo.KTA_M_Penalty
  WHERE CompanyID=@CompanyID AND LocationID=@LocationID;
