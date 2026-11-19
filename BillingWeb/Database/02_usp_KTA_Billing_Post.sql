@@ -8,11 +8,15 @@ GO
 IF OBJECT_ID('dbo.usp_KTA_Billing_Post','P') IS NOT NULL DROP PROCEDURE dbo.usp_KTA_Billing_Post
 GO
 CREATE PROCEDURE dbo.usp_KTA_Billing_Post
- @BatchID uniqueidentifier,
  @CompanyID varchar(10),
  @LocationID varchar(3),
  @UpdateUser varchar(10),
- @Dummy bit = 0
+ @Dummy bit = 0,
+ @BillingMember dbo.Type_KTA_BillingMember READONLY,
+ @BillingCard dbo.Type_KTA_BillingCard READONLY,
+ @BillingMonthly dbo.Type_KTA_BillingMonthly READONLY,
+ @CardUnavailableConfirmed bit=0,
+ @MonthlyUnavailableConfirmed bit=0
 AS
 BEGIN
  SET NOCOUNT ON;
@@ -23,8 +27,7 @@ BEGIN
          @Penalty money,@MinPEC money,@HardCopyCharges money,@PPN money,
          @AcctRate money,@Err varchar(4000);
 
- SELECT @Period=ActivePeriod FROM dbo.KTA_W_BillingBatch
- WHERE BatchID=@BatchID AND CompanyID=@CompanyID AND LocationID=@LocationID;
+ SELECT @Period=ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KAR'+@CompanyID+@LocationID;
  IF @Period IS NULL
  BEGIN
   RAISERROR('Invalid billing batch/company/location.',16,1);
@@ -74,9 +77,14 @@ BEGIN
   RETURN;
  END
 
- IF NOT EXISTS(SELECT 1 FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID AND ValidationStatus=1)
+
+ DECLARE @Validation TABLE(ValidationStatus int,ValidationMessage varchar(2000),ActivePeriod smalldatetime);
+ INSERT @Validation EXEC dbo.usp_KTA_Billing_Validate @CompanyID,@LocationID,@BillingMember,@BillingCard,@BillingMonthly,@CardUnavailableConfirmed,@MonthlyUnavailableConfirmed;
+ IF NOT EXISTS(SELECT 1 FROM @Validation WHERE ValidationStatus=1)
  BEGIN
-  RAISERROR('Billing batch has not passed validation.',16,1);
+  DECLARE @ValidationError varchar(2000);
+  SELECT @ValidationError=ISNULL(ValidationMessage,'Billing source validation failed.') FROM @Validation;
+  RAISERROR('%s',16,1,@ValidationError);
   RETURN;
  END
 
@@ -315,30 +323,30 @@ BEGIN
 
       INSERT dbo.KTA_T_D_Billing(KeyHD,SeqNo,IncomeCode,Amount,InvoiceNo,InvoiceDate,PhoneNo,Description)
       SELECT @KeyHD,@Seq+ROW_NUMBER() OVER(ORDER BY DateTrans,[Description],RowNo),'PCR',Amount,'','19000101','',LEFT([Description],100)
-      FROM dbo.KTA_W_BillingMember WHERE BatchID=@BatchID AND UnitNo=@UnitNo
+      FROM  #BillingMember WHERE UnitNo=@UnitNo
         AND DateTrans>=DATEADD(month,DATEDIFF(month,0,@Period),0)
         AND DateTrans<DATEADD(month,DATEDIFF(month,0,@Period)+1,0);
       SELECT @Seq=ISNULL(MAX(SeqNo),@Seq),@Total=@Total+ISNULL(SUM(Amount),0)
       FROM dbo.KTA_T_D_Billing WHERE KeyHD=@KeyHD;
 
-      IF EXISTS(SELECT 1 FROM dbo.KTA_W_BillingCard WHERE BatchID=@BatchID)
+      IF EXISTS(SELECT 1 FROM  #BillingCard WHERE BatchID=@BatchID)
       BEGIN
         INSERT dbo.KTA_T_D_Billing(KeyHD,SeqNo,IncomeCode,Amount,InvoiceNo,InvoiceDate,PhoneNo,Description)
         SELECT @KeyHD,@Seq+ROW_NUMBER() OVER(ORDER BY RowNo),'ELV',ROUND(TotalPowerCost,0),'','19000101','',
                'Electricity Reimbursement for EV Charging EV-2, Usage Period '+
                DATENAME(month,PeriodFrom)+', '+CAST(YEAR(PeriodFrom) AS varchar)
-        FROM dbo.KTA_W_BillingCard WHERE BatchID=@BatchID AND ChargingCardName=@UnitNo;
+        FROM dbo.KTA_W_BillingCard WHERE ChargingCardName=@UnitNo;
         SELECT @Seq=ISNULL(MAX(SeqNo),@Seq),@Total=@Total+ISNULL(SUM(Amount),0)
         FROM dbo.KTA_T_D_Billing WHERE KeyHD=@KeyHD;
       END
 
-      IF EXISTS(SELECT 1 FROM dbo.KTA_W_BillingMonthly WHERE BatchID=@BatchID)
+      IF EXISTS(SELECT 1 FROM  #BillingMonthly WHERE BatchID=@BatchID)
       BEGIN
         INSERT dbo.KTA_T_D_Billing(KeyHD,SeqNo,IncomeCode,Amount,InvoiceNo,InvoiceDate,PhoneNo,Description)
         SELECT @KeyHD,@Seq+ROW_NUMBER() OVER(ORDER BY RowNo),'ELV',ROUND(SubtotalAmount,0),'','19000101','',
                'Electricity Reimbursement for EV Charging EV-1, Usage Period '+
                DATENAME(month,PeriodFrom)+', '+CAST(YEAR(PeriodFrom) AS varchar)
-        FROM dbo.KTA_W_BillingMonthly WHERE BatchID=@BatchID AND DriverAccount=@UnitNo;
+        FROM dbo.KTA_W_BillingMonthly WHERE DriverAccount=@UnitNo;
         SELECT @Seq=ISNULL(MAX(SeqNo),@Seq),@Total=@Total+ISNULL(SUM(Amount),0)
         FROM dbo.KTA_T_D_Billing WHERE KeyHD=@KeyHD;
       END
@@ -485,6 +493,9 @@ BEGIN
 
    DROP TABLE #LPC;
    DROP TABLE #Units;
+   DROP TABLE #BillingMember;
+   DROP TABLE #BillingCard;
+   DROP TABLE #BillingMonthly;
 
    /* Outstanding + Sales Journal: exact VB6 grouping boundaries. */
    ;WITH BI AS
