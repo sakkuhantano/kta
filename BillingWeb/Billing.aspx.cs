@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Web.UI;
+using System.Text.RegularExpressions;
 using OfficeOpenXml;
 
 namespace BillingWeb
@@ -519,17 +520,23 @@ namespace BillingWeb
 
         private static void ParseRange(string value, out DateTime from, out DateTime thru)
         {
-            string s = (value ?? "").Trim().Trim('"');
-            string[] p = s.Split(new[] { '_','-','–','—' }, StringSplitOptions.RemoveEmptyEntries);
-            if (p.Length >= 2)
+            string s = (value ?? "").Trim().Trim('"').Replace('–','-').Replace('—','-');
+            Match m = Regex.Match(s, @"(\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}|\\d{1,2}[-/]\\d{1,2}[-/]\\d{4})\\s*(?:_|\\s+-\\s+|\\s+to\\s+|\\s+THRU\\s+)(\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}|\\d{1,2}[-/]\\d{1,2}[-/]\\d{4})", RegexOptions.IgnoreCase);
+            if (!m.Success)
+                throw new ApplicationException("Statistical/From-Thru period tidak valid: " + value);
+            from = ParseDate(m.Groups[1].Value);
+            thru = ParseDate(m.Groups[2].Value);
+            if (from > thru) throw new ApplicationException("From period lebih besar dari Thru period: " + value);
+        }
+
+        private static byte[] ReadAllBytes(Stream stream)
+        {
+            if (stream.CanSeek) stream.Position = 0;
+            using (MemoryStream ms = new MemoryStream())
             {
-                string a = p[0].Trim();
-                string b = p[1].Trim();
-                if (a.Length == 10 && b.Length == 10) { from = ParseDate(a); thru = ParseDate(b); return; }
-                DateTime parsed;
-                if (DateTime.TryParseExact(a + "-" + b, "yyyy-MM-dd-yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsed)) { from = parsed; thru = ParseDate(b); return; }
+                stream.CopyTo(ms);
+                return ms.ToArray();
             }
-            throw new ApplicationException("Statistical/From-Thru period tidak valid: " + value);
         }
 
         private static Dictionary<string,int> GetExcelHeaders(ExcelWorksheet ws)
