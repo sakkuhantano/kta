@@ -26,9 +26,9 @@ session-key names in Web.config.
 
 There are no persistent billing staging or batch tables. The three source files are parsed into in-memory .NET DataTables held in server-side ASP.NET Session for the lifetime of the upload session. Each Validate, Preview, Process, and Dummy Statement call sends the rows to SQL Server using these table-valued parameters:
 
-- `dbo.Type_KTA_BillingMember`
-- `dbo.Type_KTA_BillingCard`
-- `dbo.Type_KTA_BillingMonthly`
+- `dbo.Type_Tbl_C4`
+- `dbo.Type_Tbl_C7`
+- `dbo.Type_Tbl_C7`
 
 SQL validates the TVPs against the active KAR period and existing KTA master/transaction data. Preview reads the TVPs without posting. Final posting repeats validation and copies TVP rows into connection-local `#temp` tables for the legacy calculation flow; those temporary tables disappear automatically. Only existing KTA billing, outstanding, sales-journal, and process tables receive permanent transaction data.
 
