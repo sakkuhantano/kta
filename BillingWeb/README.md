@@ -102,7 +102,7 @@ The Billing page includes a dummy statement action for a selected unit range. It
 - uses temporary D-prefixed BillingNo values and never calls sp_GetGenerateAutoNumID;
 - runs inside an outer SQL transaction and rolls back after the legacy
   sp_KTA_rpt_BillingStatement dataset has been returned;
-- uses the uploaded vb6/rptKTA_BillingStatement_New.rpt file to export an inline PDF
+- uses the copied BillingWeb/Reports/rptKTA_BillingStatement_New.rpt file to export an inline PDF
   when the SAP Crystal Reports runtime is installed and registered in IIS;
 - falls back to displaying the returned report dataset in GridView if Crystal runtime
   or report binding is unavailable.
