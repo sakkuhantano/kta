@@ -21,34 +21,23 @@ GO
 IF OBJECT_ID('dbo.KTA_W_BillingBatch','U') IS NOT NULL DROP TABLE dbo.KTA_W_BillingBatch
 GO
 
-IF TYPE_ID('dbo.Type_KTA_BillingMember') IS NULL
- EXEC('CREATE TYPE dbo.Type_KTA_BillingMember AS TABLE
- (RowNo int NOT NULL, UnitNo varchar(5) NOT NULL, DateTrans smalldatetime NOT NULL,
-  [Description] varchar(100) NULL, Amount money NOT NULL)')
-GO
-IF TYPE_ID('dbo.Type_KTA_BillingCard') IS NULL
- EXEC('CREATE TYPE dbo.Type_KTA_BillingCard AS TABLE
- (RowNo int NOT NULL, ChargingCardName varchar(100) NOT NULL, ChargingCardNo varchar(100) NULL,
-  Currency varchar(3) NULL, TotalPowerCost money NOT NULL, TotalPowerConsumption decimal(18,4) NULL,
-  PeriodFrom smalldatetime NOT NULL, PeriodThru smalldatetime NOT NULL)')
-GO
-IF TYPE_ID('dbo.Type_KTA_BillingMonthly') IS NULL
- EXEC('CREATE TYPE dbo.Type_KTA_BillingMonthly AS TABLE
- (RowNo int NOT NULL, DriverAccount varchar(100) NOT NULL, SubtotalAmount money NOT NULL,
-  SubtotalPowerUsage decimal(18,4) NULL, PeriodFrom smalldatetime NOT NULL, PeriodThru smalldatetime NOT NULL)')
-GO
-
 IF OBJECT_ID('dbo.usp_KTA_Billing_Validate','P') IS NOT NULL DROP PROCEDURE dbo.usp_KTA_Billing_Validate
 GO
 CREATE PROCEDURE dbo.usp_KTA_Billing_Validate
  @CompanyID varchar(10), @LocationID varchar(3),
- @BillingMember dbo.Type_KTA_BillingMember READONLY,
- @BillingCard dbo.Type_KTA_BillingCard READONLY,
- @BillingMonthly dbo.Type_KTA_BillingMonthly READONLY,
+ @BillingMember dbo.Type_Tbl_C4 READONLY,
+ @BillingCard dbo.Type_Tbl_C7 READONLY,
+ @BillingMonthly dbo.Type_Tbl_C7 READONLY,
  @CardUnavailableConfirmed bit=0, @MonthlyUnavailableConfirmed bit=0
 AS
 BEGIN
  SET NOCOUNT ON;
+ CREATE TABLE #BillingMember(RowNo int IDENTITY(1,1),UnitNo varchar(5),DateTrans smalldatetime,[Description] varchar(100),Amount money);
+ INSERT #BillingMember(UnitNo,DateTrans,[Description],Amount) SELECT LTRIM(RTRIM(C1)),CONVERT(smalldatetime,C2,120),C3,CONVERT(money,C4) FROM #BillingMember;
+ CREATE TABLE #BillingCard(RowNo int IDENTITY(1,1),ChargingCardName varchar(100),ChargingCardNo varchar(100),Currency varchar(3),TotalPowerCost money,TotalPowerConsumption decimal(18,4),PeriodFrom smalldatetime,PeriodThru smalldatetime);
+ INSERT #BillingCard(ChargingCardName,ChargingCardNo,Currency,TotalPowerCost,TotalPowerConsumption,PeriodFrom,PeriodThru) SELECT LTRIM(RTRIM(C1)),C2,C3,CONVERT(money,C4),CASE WHEN ISNULL(C5,'')='' THEN NULL ELSE CONVERT(decimal(18,4),C5) END,CONVERT(smalldatetime,C6,120),CONVERT(smalldatetime,C7,120) FROM #BillingCard;
+ CREATE TABLE #BillingMonthly(RowNo int IDENTITY(1,1),DriverAccount varchar(100),SubtotalAmount money,SubtotalPowerUsage decimal(18,4),PeriodFrom smalldatetime,PeriodThru smalldatetime);
+ INSERT #BillingMonthly(DriverAccount,SubtotalAmount,SubtotalPowerUsage,PeriodFrom,PeriodThru) SELECT LTRIM(RTRIM(C1)),CONVERT(money,C2),CASE WHEN ISNULL(C3,'')='' THEN NULL ELSE CONVERT(decimal(18,4),C3) END,CONVERT(smalldatetime,C4,120),CONVERT(smalldatetime,C5,120) FROM #BillingMonthly;
  DECLARE @Period smalldatetime,@PeriodCAR smalldatetime,@MonthStart smalldatetime,@MonthEnd smalldatetime,
          @Message varchar(2000);
  SELECT @Period=ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KAR'+@CompanyID+@LocationID;
@@ -63,31 +52,31 @@ BEGIN
  END
  IF @PeriodCAR IS NOT NULL AND @Period IS NOT NULL AND CONVERT(varchar(6),@PeriodCAR,112)<>CONVERT(varchar(6),@Period,112)
   SET @Message=@Message+'Active KAR and KCAR periods are not aligned for processing. ';
- IF NOT EXISTS(SELECT 1 FROM @BillingMember)
+ IF NOT EXISTS(SELECT 1 FROM #BillingMember)
   SET @Message=@Message+'Billing_member file is required and must contain data. ';
- IF NOT EXISTS(SELECT 1 FROM @BillingCard) AND @CardUnavailableConfirmed=0
+ IF NOT EXISTS(SELECT 1 FROM #BillingCard) AND @CardUnavailableConfirmed=0
   SET @Message=@Message+'Upload Card Payment Statistics or confirm it is unavailable. ';
- IF NOT EXISTS(SELECT 1 FROM @BillingMonthly) AND @MonthlyUnavailableConfirmed=0
+ IF NOT EXISTS(SELECT 1 FROM #BillingMonthly) AND @MonthlyUnavailableConfirmed=0
   SET @Message=@Message+'Upload Billing Report Monthly or confirm it is unavailable. ';
- IF @Period IS NOT NULL AND EXISTS(SELECT 1 FROM @BillingMember WHERE DateTrans<@MonthStart OR DateTrans>=@MonthEnd)
+ IF @Period IS NOT NULL AND EXISTS(SELECT 1 FROM #BillingMember WHERE DateTrans<@MonthStart OR DateTrans>=@MonthEnd)
   SET @Message=@Message+'Billing_member contains transaction dates outside active KAR period. ';
- IF @Period IS NOT NULL AND EXISTS(SELECT 1 FROM @BillingCard WHERE PeriodFrom<@MonthStart OR PeriodThru>=@MonthEnd OR PeriodFrom>PeriodThru)
+ IF @Period IS NOT NULL AND EXISTS(SELECT 1 FROM #BillingCard WHERE PeriodFrom<@MonthStart OR PeriodThru>=@MonthEnd OR PeriodFrom>PeriodThru)
   SET @Message=@Message+'Card Payment Statistics contains invalid Statistical Period. ';
- IF @Period IS NOT NULL AND EXISTS(SELECT 1 FROM @BillingMonthly WHERE PeriodFrom<@MonthStart OR PeriodThru>=@MonthEnd OR PeriodFrom>PeriodThru)
+ IF @Period IS NOT NULL AND EXISTS(SELECT 1 FROM #BillingMonthly WHERE PeriodFrom<@MonthStart OR PeriodThru>=@MonthEnd OR PeriodFrom>PeriodThru)
   SET @Message=@Message+'Billing Report Monthly contains invalid From-Thru period. ';
- IF EXISTS(SELECT 1 FROM @BillingMember m WHERE NOT EXISTS(
+ IF EXISTS(SELECT 1 FROM #BillingMember m WHERE NOT EXISTS(
     SELECT 1 FROM dbo.KTA_M_Unit u WHERE u.CompanyID=@CompanyID AND u.LocationID=@LocationID
      AND u.UnitNo=m.UnitNo AND u.Tower<>'' AND u.OwnerID<>''
      AND EXISTS(SELECT 1 FROM dbo.KTA_T_H_Billing h WHERE h.CompanyID=u.CompanyID AND h.LocationID=u.LocationID
        AND h.UnitNo=u.UnitNo AND CONVERT(varchar(6),h.BillDate,112)=CONVERT(varchar(6),DATEADD(month,-1,@Period),112))))
   SET @Message=@Message+'Billing_member contains units that are not eligible for this billing run. ';
- IF EXISTS(SELECT 1 FROM @BillingCard c WHERE NOT EXISTS(
+ IF EXISTS(SELECT 1 FROM #BillingCard c WHERE NOT EXISTS(
     SELECT 1 FROM dbo.KTA_M_Unit u WHERE u.CompanyID=@CompanyID AND u.LocationID=@LocationID
      AND u.UnitNo=c.ChargingCardName AND u.Tower<>'' AND u.OwnerID<>''
      AND EXISTS(SELECT 1 FROM dbo.KTA_T_H_Billing h WHERE h.CompanyID=u.CompanyID AND h.LocationID=u.LocationID
        AND h.UnitNo=u.UnitNo AND CONVERT(varchar(6),h.BillDate,112)=CONVERT(varchar(6),DATEADD(month,-1,@Period),112))))
   SET @Message=@Message+'Card Payment Statistics contains Charging Card Name values that are not eligible unit numbers. ';
- IF EXISTS(SELECT 1 FROM @BillingMonthly m WHERE NOT EXISTS(
+ IF EXISTS(SELECT 1 FROM #BillingMonthly m WHERE NOT EXISTS(
     SELECT 1 FROM dbo.KTA_M_Unit u WHERE u.CompanyID=@CompanyID AND u.LocationID=@LocationID
      AND u.UnitNo=m.DriverAccount AND u.Tower<>'' AND u.OwnerID<>''
      AND EXISTS(SELECT 1 FROM dbo.KTA_T_H_Billing h WHERE h.CompanyID=u.CompanyID AND h.LocationID=u.LocationID
@@ -111,13 +100,19 @@ IF OBJECT_ID('dbo.usp_KTA_Billing_Preview','P') IS NOT NULL DROP PROCEDURE dbo.u
 GO
 CREATE PROCEDURE dbo.usp_KTA_Billing_Preview
  @CompanyID varchar(10), @LocationID varchar(3),
- @BillingMember dbo.Type_KTA_BillingMember READONLY,
- @BillingCard dbo.Type_KTA_BillingCard READONLY,
- @BillingMonthly dbo.Type_KTA_BillingMonthly READONLY,
+ @BillingMember dbo.Type_Tbl_C4 READONLY,
+ @BillingCard dbo.Type_Tbl_C7 READONLY,
+ @BillingMonthly dbo.Type_Tbl_C7 READONLY,
  @CardUnavailableConfirmed bit=0, @MonthlyUnavailableConfirmed bit=0
 AS
 BEGIN
  SET NOCOUNT ON;
+ CREATE TABLE #BillingMember(RowNo int IDENTITY(1,1),UnitNo varchar(5),DateTrans smalldatetime,[Description] varchar(100),Amount money);
+ INSERT #BillingMember(UnitNo,DateTrans,[Description],Amount) SELECT LTRIM(RTRIM(C1)),CONVERT(smalldatetime,C2,120),C3,CONVERT(money,C4) FROM #BillingMember;
+ CREATE TABLE #BillingCard(RowNo int IDENTITY(1,1),ChargingCardName varchar(100),ChargingCardNo varchar(100),Currency varchar(3),TotalPowerCost money,TotalPowerConsumption decimal(18,4),PeriodFrom smalldatetime,PeriodThru smalldatetime);
+ INSERT #BillingCard(ChargingCardName,ChargingCardNo,Currency,TotalPowerCost,TotalPowerConsumption,PeriodFrom,PeriodThru) SELECT LTRIM(RTRIM(C1)),C2,C3,CONVERT(money,C4),CASE WHEN ISNULL(C5,'')='' THEN NULL ELSE CONVERT(decimal(18,4),C5) END,CONVERT(smalldatetime,C6,120),CONVERT(smalldatetime,C7,120) FROM #BillingCard;
+ CREATE TABLE #BillingMonthly(RowNo int IDENTITY(1,1),DriverAccount varchar(100),SubtotalAmount money,SubtotalPowerUsage decimal(18,4),PeriodFrom smalldatetime,PeriodThru smalldatetime);
+ INSERT #BillingMonthly(DriverAccount,SubtotalAmount,SubtotalPowerUsage,PeriodFrom,PeriodThru) SELECT LTRIM(RTRIM(C1)),CONVERT(money,C2),CASE WHEN ISNULL(C3,'')='' THEN NULL ELSE CONVERT(decimal(18,4),C3) END,CONVERT(smalldatetime,C4,120),CONVERT(smalldatetime,C5,120) FROM #BillingMonthly;
  DECLARE @Status int,@Message varchar(2000),@Period smalldatetime;
  DECLARE @V TABLE(ValidationStatus int,ValidationMessage varchar(2000),ActivePeriod smalldatetime);
  INSERT @V EXEC dbo.usp_KTA_Billing_Validate @CompanyID,@LocationID,@BillingMember,@BillingCard,@BillingMonthly,@CardUnavailableConfirmed,@MonthlyUnavailableConfirmed;
@@ -128,15 +123,15 @@ BEGIN
   RETURN;
  END
  SELECT 1 ValidationStatus,CAST(NULL AS varchar(2000)) ValidationMessage,@Period ActivePeriod;
- SELECT 'PCR' SourceCode,COUNT(*) RowCount,COUNT(DISTINCT UnitNo) UnitCount,SUM(Amount) TotalAmount FROM @BillingMember
- UNION ALL SELECT 'ELV-MONTHLY',COUNT(*),COUNT(DISTINCT DriverAccount),SUM(SubtotalAmount) FROM @BillingMonthly
- UNION ALL SELECT 'ELV-CARD',COUNT(*),COUNT(DISTINCT ChargingCardName),SUM(TotalPowerCost) FROM @BillingCard;
- SELECT 'PCR' SourceCode,UnitNo,COUNT(*) SourceRows,SUM(Amount) Amount FROM @BillingMember GROUP BY UnitNo
- UNION ALL SELECT 'ELV-MONTHLY',DriverAccount,COUNT(*),SUM(SubtotalAmount) FROM @BillingMonthly GROUP BY DriverAccount
- UNION ALL SELECT 'ELV-CARD',ChargingCardName,COUNT(*),SUM(TotalPowerCost) FROM @BillingCard GROUP BY ChargingCardName
+ SELECT 'PCR' SourceCode,COUNT(*) RowCount,COUNT(DISTINCT UnitNo) UnitCount,SUM(Amount) TotalAmount FROM #BillingMember
+ UNION ALL SELECT 'ELV-MONTHLY',COUNT(*),COUNT(DISTINCT DriverAccount),SUM(SubtotalAmount) FROM #BillingMonthly
+ UNION ALL SELECT 'ELV-CARD',COUNT(*),COUNT(DISTINCT ChargingCardName),SUM(TotalPowerCost) FROM #BillingCard;
+ SELECT 'PCR' SourceCode,UnitNo,COUNT(*) SourceRows,SUM(Amount) Amount FROM #BillingMember GROUP BY UnitNo
+ UNION ALL SELECT 'ELV-MONTHLY',DriverAccount,COUNT(*),SUM(SubtotalAmount) FROM #BillingMonthly GROUP BY DriverAccount
+ UNION ALL SELECT 'ELV-CARD',ChargingCardName,COUNT(*),SUM(TotalPowerCost) FROM #BillingCard GROUP BY ChargingCardName
  ORDER BY SourceCode,UnitNo;
  SELECT 'Billing_member' SourceName,'Uploaded' SourceStatus
- UNION ALL SELECT 'Card Payment Statistics',CASE WHEN EXISTS(SELECT 1 FROM @BillingCard) THEN 'Uploaded' ELSE 'Belum di-upload – dikonfirmasi tidak tersedia' END
- UNION ALL SELECT 'Billing Report Monthly',CASE WHEN EXISTS(SELECT 1 FROM @BillingMonthly) THEN 'Uploaded' ELSE 'Belum di-upload – dikonfirmasi tidak tersedia' END;
+ UNION ALL SELECT 'Card Payment Statistics',CASE WHEN EXISTS(SELECT 1 FROM #BillingCard) THEN 'Uploaded' ELSE 'Belum di-upload – dikonfirmasi tidak tersedia' END
+ UNION ALL SELECT 'Billing Report Monthly',CASE WHEN EXISTS(SELECT 1 FROM #BillingMonthly) THEN 'Uploaded' ELSE 'Belum di-upload – dikonfirmasi tidak tersedia' END;
 END
 GO
