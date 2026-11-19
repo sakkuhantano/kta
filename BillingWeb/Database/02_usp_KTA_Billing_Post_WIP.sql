@@ -313,6 +313,14 @@ BEGIN
        ELSE IF @nKey<>@LPCKeyHD SET @LPCBreak=1;
        ELSE SET @LPCBreak=0;
 
+       -- Legacy VB6 special case retained exactly: AIR negative balance for 202511.
+       IF @LPCBreak=1 AND @LPCOuts<0 AND @LPCOuts1=0
+          AND @LPCIncome='AIR' AND CONVERT(varchar(6),@LPCBillDate,112)='202511'
+       BEGIN
+          SET @LPCOuts1=@LPCOuts;
+          SET @LPCIncome1=@LPCIncome;
+       END
+
        IF @LPCBreak>0
        BEGIN
         IF @LPCOuts>0 AND CONVERT(varchar(6),@LPCDueDate,112)<=CONVERT(varchar(6),@LPCPeriod1,112)
