@@ -9,6 +9,11 @@ namespace BillingWeb {
         protected global::System.Web.UI.WebControls.Button btnNew;
         protected global::System.Web.UI.WebControls.Button btnValidate;
         protected global::System.Web.UI.WebControls.Button btnPreview;
+        protected global::System.Web.UI.WebControls.Button btnDummyStatementRun;
+        protected global::System.Web.UI.WebControls.TextBox txtDummyUnitFrom;
+        protected global::System.Web.UI.WebControls.TextBox txtDummyUnitThru;
+        protected global::System.Web.UI.WebControls.Label lblDummyStatement;
+        protected global::System.Web.UI.WebControls.GridView gvDummyStatement;
         protected global::System.Web.UI.WebControls.Button btnProcess;
         protected global::System.Web.UI.WebControls.TextBox txtCompany;
         protected global::System.Web.UI.WebControls.TextBox txtLocation;
