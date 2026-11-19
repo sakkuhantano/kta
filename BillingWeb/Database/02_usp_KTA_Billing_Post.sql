@@ -25,42 +25,67 @@ BEGIN
 
  SELECT @Period=ActivePeriod FROM dbo.KTA_W_BillingBatch
  WHERE BatchID=@BatchID AND CompanyID=@CompanyID AND LocationID=@LocationID;
- IF @Period IS NULL RAISERROR('Invalid billing batch/company/location.',16,1);
- RETURN;
+ IF @Period IS NULL
+ BEGIN
+  RAISERROR('Invalid billing batch/company/location.',16,1);
+  RETURN;
+ END
 
  SELECT @PeriodCAR=ActivePeriod FROM dbo.M_Active_Period
  WHERE AutoNum='KCAR'+@CompanyID+@LocationID;
- IF @PeriodCAR IS NULL RAISERROR('Active CAR period was not found.',16,1);
- RETURN;
+ IF @PeriodCAR IS NULL
+ BEGIN
+  RAISERROR('Active CAR period was not found.',16,1);
+  RETURN;
+ END
 
  SELECT @TermDue=CAST(Term AS int),@Penalty=Penalty,@MinPEC=ISNULL(MinPEC,0),
         @HardCopyCharges=ISNULL(HardCopyCharges,0)
  FROM dbo.KTA_M_Penalty WHERE CompanyID=@CompanyID AND LocationID=@LocationID;
- IF @TermDue IS NULL RAISERROR('KTA_M_Penalty not found.',16,1);
- RETURN;
+ IF @TermDue IS NULL
+ BEGIN
+  RAISERROR('KTA_M_Penalty not found.',16,1);
+  RETURN;
+ END
 
  SELECT TOP 1 @AcctRate=AcctRate FROM dbo.M_Rate
  WHERE CONVERT(varchar(6),[Date],112)=CONVERT(varchar(6),@PeriodCAR,112)
  ORDER BY [Date];
- IF @AcctRate IS NULL RAISERROR('M_Rate for active CAR period was not found.',16,1);
- RETURN;
+ IF @AcctRate IS NULL
+ BEGIN
+  RAISERROR('M_Rate for active CAR period was not found.',16,1);
+  RETURN;
+ END
 
  -- VB6 requires telephone billing rows for the last day of the month before KAR-1.
  IF NOT EXISTS(SELECT 1 FROM dbo.KTA_T_BillingPhone
-               WHERE BillDate=DATEADD(day,-1,DATEADD(month,-1,DATEADD(day,1,@Period))))
+               WHERE CONVERT(varchar(8),BillDate,112)=
+                     CONVERT(varchar(8),DATEADD(day,-1,DATEADD(month,-1,DATEADD(day,1,@Period))),112))
+ BEGIN
   RAISERROR('Telephone billing source is missing for the required prior period.',16,1);
+  RETURN;
+ END
 
  IF NOT EXISTS(SELECT 1 FROM dbo.KTA_W_BillingBatch WHERE BatchID=@BatchID AND ValidationStatus=1)
+ BEGIN
   RAISERROR('Billing batch has not passed validation.',16,1);
+  RETURN;
+ END
 
  IF CONVERT(varchar(6),@Period,112)<>CONVERT(varchar(6),@PeriodCAR,112)
+ BEGIN
   RAISERROR('Process can be done after EOM: active KAR and KCAR periods are not the same.',16,1);
+  RETURN;
+ END
 
  DECLARE @BillDateDay tinyint;
  SELECT @BillDateDay=BillDate FROM dbo.KTA_M_Penalty
  WHERE CompanyID=@CompanyID AND LocationID=@LocationID;
- IF @BillDateDay IS NULL OR @BillDateDay=0 RAISERROR('KTA_M_Penalty.BillDate is not configured.',16,1);
- RETURN;
+ IF @BillDateDay IS NULL OR @BillDateDay=0
+ BEGIN
+  RAISERROR('KTA_M_Penalty.BillDate is not configured.',16,1);
+  RETURN;
+ END
  SET @BillDate=DATEADD(day,@BillDateDay-1,DATEADD(month,DATEDIFF(month,0,@Period),0));
  SET @DueDate=DATEADD(day,@TermDue-1,@BillDate);
  SET @PrevPeriod=DATEADD(day,-1,DATEADD(month,DATEDIFF(month,0,@Period),0));
@@ -150,7 +175,6 @@ BEGIN
         EXECUTE dbo.sp_GetGenerateAutoNumID 'arkta',@AutoNum,1;
         SELECT @BillingNo=ID FROM @AutoNumResult;
         IF ISNULL(@BillingNo,'')='' RAISERROR('Failed to generate BillingNo.',16,1);
-        RETURN;
       END
 
       INSERT dbo.KTA_T_H_Billing(CompanyID,LocationID,BillingNo,UnitNo,BillDate,DueDate,
