@@ -30,7 +30,7 @@ BEGIN
  SELECT @Period=ActivePeriod FROM dbo.M_Active_Period WHERE AutoNum='KAR'+@CompanyID+@LocationID;
  IF @Period IS NULL
  BEGIN
-  RAISERROR('Invalid billing batch/company/location.',16,1);
+  RAISERROR('Active KAR billing period was not found.',16,1);
   RETURN;
  END
 
@@ -38,7 +38,7 @@ BEGIN
  WHERE AutoNum='KAR'+@CompanyID+@LocationID;
  IF @PeriodKAR IS NULL OR CONVERT(varchar(6),@PeriodKAR,112)<>CONVERT(varchar(6),@Period,112)
  BEGIN
-  RAISERROR('Billing batch period is no longer the active KAR period.',16,1);
+  RAISERROR('Active KAR billing period changed; reload and validate source files.',16,1);
   RETURN;
  END
 
@@ -167,6 +167,13 @@ BEGIN
      This is the set-based equivalent of sp_KTA_selectLPC, avoiding 2,700
      separate stored-procedure executions while retaining its filters/order.
    */
+   CREATE TABLE #BillingMember(RowNo int NOT NULL,UnitNo varchar(5) NOT NULL,DateTrans smalldatetime NOT NULL,[Description] varchar(100) NULL,Amount money NOT NULL);
+   INSERT #BillingMember SELECT RowNo,UnitNo,DateTrans,[Description],Amount FROM @BillingMember;
+   CREATE TABLE #BillingCard(RowNo int NOT NULL,ChargingCardName varchar(100) NOT NULL,ChargingCardNo varchar(100) NULL,Currency varchar(3) NULL,TotalPowerCost money NOT NULL,TotalPowerConsumption decimal(18,4) NULL,PeriodFrom smalldatetime NOT NULL,PeriodThru smalldatetime NOT NULL);
+   INSERT #BillingCard SELECT RowNo,ChargingCardName,ChargingCardNo,Currency,TotalPowerCost,TotalPowerConsumption,PeriodFrom,PeriodThru FROM @BillingCard;
+   CREATE TABLE #BillingMonthly(RowNo int NOT NULL,DriverAccount varchar(100) NOT NULL,SubtotalAmount money NOT NULL,SubtotalPowerUsage decimal(18,4) NULL,PeriodFrom smalldatetime NOT NULL,PeriodThru smalldatetime NOT NULL);
+   INSERT #BillingMonthly SELECT RowNo,DriverAccount,SubtotalAmount,SubtotalPowerUsage,PeriodFrom,PeriodThru FROM @BillingMonthly;
+
    DECLARE @LPCPeriodText varchar(6);
    SET @LPCPeriodText=CONVERT(varchar(6),@Period,112);
 
@@ -329,24 +336,24 @@ BEGIN
       SELECT @Seq=ISNULL(MAX(SeqNo),@Seq),@Total=@Total+ISNULL(SUM(Amount),0)
       FROM dbo.KTA_T_D_Billing WHERE KeyHD=@KeyHD;
 
-      IF EXISTS(SELECT 1 FROM  #BillingCard WHERE BatchID=@BatchID)
+      IF EXISTS(SELECT 1 FROM #BillingCard)
       BEGIN
         INSERT dbo.KTA_T_D_Billing(KeyHD,SeqNo,IncomeCode,Amount,InvoiceNo,InvoiceDate,PhoneNo,Description)
         SELECT @KeyHD,@Seq+ROW_NUMBER() OVER(ORDER BY RowNo),'ELV',ROUND(TotalPowerCost,0),'','19000101','',
                'Electricity Reimbursement for EV Charging EV-2, Usage Period '+
                DATENAME(month,PeriodFrom)+', '+CAST(YEAR(PeriodFrom) AS varchar)
-        FROM dbo.KTA_W_BillingCard WHERE ChargingCardName=@UnitNo;
+        FROM #BillingCard WHERE ChargingCardName=@UnitNo;
         SELECT @Seq=ISNULL(MAX(SeqNo),@Seq),@Total=@Total+ISNULL(SUM(Amount),0)
         FROM dbo.KTA_T_D_Billing WHERE KeyHD=@KeyHD;
       END
 
-      IF EXISTS(SELECT 1 FROM  #BillingMonthly WHERE BatchID=@BatchID)
+      IF EXISTS(SELECT 1 FROM #BillingMonthly)
       BEGIN
         INSERT dbo.KTA_T_D_Billing(KeyHD,SeqNo,IncomeCode,Amount,InvoiceNo,InvoiceDate,PhoneNo,Description)
         SELECT @KeyHD,@Seq+ROW_NUMBER() OVER(ORDER BY RowNo),'ELV',ROUND(SubtotalAmount,0),'','19000101','',
                'Electricity Reimbursement for EV Charging EV-1, Usage Period '+
                DATENAME(month,PeriodFrom)+', '+CAST(YEAR(PeriodFrom) AS varchar)
-        FROM dbo.KTA_W_BillingMonthly WHERE DriverAccount=@UnitNo;
+        FROM #BillingMonthly WHERE DriverAccount=@UnitNo;
         SELECT @Seq=ISNULL(MAX(SeqNo),@Seq),@Total=@Total+ISNULL(SUM(Amount),0)
         FROM dbo.KTA_T_D_Billing WHERE KeyHD=@KeyHD;
       END
