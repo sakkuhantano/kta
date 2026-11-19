@@ -145,20 +145,14 @@ BEGIN
       END
 
       INSERT dbo.KTA_T_D_Billing(KeyHD,SeqNo,IncomeCode,Amount,InvoiceNo,InvoiceDate,PhoneNo,Description)
-      SELECT @KeyHD,@Seq+ROW_NUMBER() OVER(ORDER BY d.RefDate,d.RefNo),'',
-             d.Amount,d.RefNo,d.RefDate,'',NULL
+      SELECT @KeyHD,@Seq+ROW_NUMBER() OVER(ORDER BY d.RefDate,d.RefNo),
+             h.IncomeCode,d.Amount,d.RefNo,d.RefDate,'',NULL
       FROM dbo.KTA_T_H_Outstanding h
       INNER JOIN dbo.KTA_T_D_Outstanding d ON d.KeyHD=h.KeyHD
       WHERE h.CompanyID=@CompanyID AND h.LocationID=@LocationID AND h.UnitNo=@UnitNo
         AND h.TxType='W' AND h.LocationNo=''
         AND d.RecordType='1'
         AND CONVERT(varchar(6),h.DocumentDate,112)=CONVERT(varchar(6),@PrevPeriod,112);
-      -- Normalize the income code after bulk insert by joining source rows.
-      UPDATE b SET IncomeCode=d.IncomeCode
-      FROM dbo.KTA_T_D_Billing b
-      INNER JOIN dbo.KTA_T_D_Outstanding d ON b.InvoiceNo=d.RefNo
-      INNER JOIN dbo.KTA_T_H_Outstanding h ON h.KeyHD=d.KeyHD
-      WHERE b.KeyHD=@KeyHD AND h.TxType='W' AND d.RecordType='1';
       SELECT @Seq=ISNULL(MAX(SeqNo),@Seq),@Total=@Total+ISNULL(SUM(Amount),0)
       FROM dbo.KTA_T_D_Billing WHERE KeyHD=@KeyHD;
 
